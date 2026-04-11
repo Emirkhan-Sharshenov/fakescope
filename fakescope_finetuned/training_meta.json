@@ -1,0 +1,16 @@
+{
+  "base_model": "cointegrated/rubert-tiny2",
+  "datasets": [
+    "liar (EN)",
+    "fakescope-ru (RU)"
+  ],
+  "ru_repeat": 8,
+  "trained_at": "2026-03-13T19:39:26.652163",
+  "test_accuracy": 0.7122,
+  "labels": {
+    "0": "FAKE",
+    "1": "REAL"
+  },
+  "max_length": 128,
+  "epochs": 4
+}

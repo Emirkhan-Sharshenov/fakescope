@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FakeScope v3</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#07090f;--s1:#0d1117;--s2:#111622;
+  --border:#1a2035;--border2:#222d45;
+  --accent:#3b82f6;--accent2:#6366f1;
+  --green:#10b981;--yellow:#f59e0b;--orange:#f97316;--red:#ef4444;
+  --text:#e2e8f0;--muted:#64748b;--muted2:#94a3b8;
+  --mono:'JetBrains Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;font-size:14px;line-height:1.6;min-height:100vh}
+body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:radial-gradient(ellipse 900px 400px at 50% -80px,rgba(59,130,246,.07) 0%,transparent 70%),
+    linear-gradient(rgba(59,130,246,.018) 1px,transparent 1px) 0 0/44px 44px,
+    linear-gradient(90deg,rgba(59,130,246,.018) 1px,transparent 1px) 0 0/44px 44px;}
+.wrap{position:relative;z-index:1;max-width:1060px;margin:0 auto;padding:0 20px 100px}
+
+/* NAV */
+nav{display:flex;align-items:center;justify-content:space-between;padding:18px 0;border-bottom:1px solid var(--border);margin-bottom:40px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;letter-spacing:-.02em}
+.brand-dot{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:15px}
+.nav-tags{display:flex;gap:6px}
+.ntag{font-family:var(--mono);font-size:10px;color:var(--muted);border:1px solid var(--border2);border-radius:5px;padding:3px 8px}
+.ntag.on{color:#93c5fd;border-color:rgba(59,130,246,.3);background:rgba(59,130,246,.06)}
+
+/* HERO */
+.hero{text-align:center;margin-bottom:40px}
+.hero h1{font-size:clamp(28px,5vw,52px);font-weight:700;letter-spacing:-.03em;line-height:1.1;margin-bottom:10px;
+  background:linear-gradient(135deg,#fff 35%,rgba(99,102,241,.85));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hero p{color:var(--muted2);font-size:15px;max-width:520px;margin:0 auto 16px}
+.chips{display:flex;gap:7px;justify-content:center;flex-wrap:wrap}
+.chip{font-family:var(--mono);font-size:11px;border:1px solid var(--border2);border-radius:100px;padding:4px 12px;color:var(--muted2);background:rgba(255,255,255,.02)}
+.chip.hi{border-color:rgba(59,130,246,.35);color:#93c5fd;background:rgba(59,130,246,.06)}
+
+/* SECTION HEADER */
+.sec{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.sec-line{width:3px;height:14px;background:linear-gradient(var(--accent),var(--accent2));border-radius:2px}
+.sec-title{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.sec-sub{font-size:11px;color:var(--muted);margin-left:auto;font-family:var(--mono)}
+
+/* TRENDING */
+.tgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:32px}
+@media(max-width:660px){.tgrid{grid-template-columns:1fr}}
+.tcard{background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:14px;cursor:pointer;transition:border-color .15s,background .15s;display:flex;flex-direction:column;gap:5px}
+.tcard:hover{border-color:rgba(59,130,246,.3);background:rgba(59,130,246,.03)}
+.tsource{font-family:var(--mono);font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:.06em}
+.ttitle{font-size:13px;font-weight:500;line-height:1.4;color:var(--text);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.ttime{font-size:10px;color:var(--muted);font-family:var(--mono)}
+.tloading{grid-column:1/-1;text-align:center;color:var(--muted);font-size:13px;padding:24px;display:flex;align-items:center;justify-content:center;gap:8px}
+
+/* FORM */
+.fbox{background:var(--s1);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:12px}
+.field{margin-bottom:16px}
+.field:last-of-type{margin-bottom:0}
+.lbl{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}
+.req{font-size:9px;padding:1px 5px;background:rgba(239,68,68,.12);color:#fca5a5;border-radius:3px}
+.opt{font-size:9px;padding:1px 5px;background:rgba(100,116,139,.12);color:var(--muted);border-radius:3px}
+input,textarea{width:100%;background:rgba(255,255,255,.02);border:1px solid var(--border2);border-radius:9px;
+  padding:11px 13px;color:var(--text);font-family:'Inter',sans-serif;font-size:14px;
+  outline:none;resize:vertical;transition:border-color .15s,background .15s}
+input::placeholder,textarea::placeholder{color:var(--muted)}
+input:focus,textarea:focus{border-color:rgba(59,130,246,.45);background:rgba(59,130,246,.025)}
+textarea{min-height:100px}
+.urlhint{font-size:11px;color:#fbbf24;margin-top:5px;display:none;padding:6px 10px;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.2);border-radius:6px}
+
+/* BTN */
+.btn{width:100%;margin-top:12px;padding:15px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  color:#fff;border:none;border-radius:11px;font-family:'Inter',sans-serif;
+  font-size:15px;font-weight:600;cursor:pointer;
+  transition:transform .15s,box-shadow .15s,opacity .15s;position:relative;overflow:hidden}
+.btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 8px 28px rgba(59,130,246,.35)}
+.btn:disabled{opacity:.6;cursor:not-allowed}
+.btn .bt{transition:opacity .2s}
+.btn .bs{display:none;position:absolute;inset:0;align-items:center;justify-content:center;gap:8px}
+.btn.go .bt{opacity:0}
+.btn.go .bs{display:flex}
+@keyframes spin{to{transform:rotate(360deg)}}
+.sring{width:18px;height:18px;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:spin .65s linear infinite}
+
+.exs{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.exl{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.exb{background:transparent;border:1px solid var(--border2);border-radius:7px;padding:5px 11px;color:var(--muted2);font-size:12px;cursor:pointer;transition:all .15s;font-family:'Inter',sans-serif}
+.exb:hover{border-color:rgba(59,130,246,.35);color:var(--text)}
+
+/* PROGRESS */
+#progBox{display:none;background:var(--s1);border:1px solid var(--border);border-radius:14px;padding:20px;margin-top:20px}
+.prog-title{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
+.steps{display:flex;flex-direction:column;gap:7px}
+.srow{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;border:1px solid transparent;transition:all .2s}
+.srow.active{background:rgba(59,130,246,.06);border-color:rgba(59,130,246,.2)}
+.srow.done{background:rgba(16,185,129,.04);border-color:rgba(16,185,129,.12)}
+.srow.pending{opacity:.35}
+.sicon{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px}
+.srow.active .sicon{background:rgba(59,130,246,.15)}
+.srow.done .sicon{background:rgba(16,185,129,.15)}
+.srow.pending .sicon{background:rgba(255,255,255,.04)}
+.slabel{flex:1;font-size:13px}
+.srow.active .slabel{color:#93c5fd;font-weight:500}
+.srow.done .slabel{color:#6ee7b7}
+.stime{font-family:var(--mono);font-size:10px;color:var(--muted)}
+.pbar{height:3px;background:rgba(255,255,255,.05);border-radius:2px;margin-top:12px;overflow:hidden}
+.pbarfill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:2px;transition:width .5s ease;width:0}
+
+/* THINKING */
+#thinkBox{display:none;background:linear-gradient(135deg,rgba(99,102,241,.05),rgba(139,92,246,.03));
+  border:1px solid rgba(99,102,241,.2);border-radius:14px;padding:18px;margin-top:12px}
+.think-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.think-title{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#a5b4fc;display:flex;align-items:center;gap:5px}
+.think-title::before{content:'◆';font-size:7px}
+.think-model{font-family:var(--mono);font-size:10px;color:var(--muted);background:rgba(255,255,255,.04);border-radius:4px;padding:2px 7px}
+.think-text{font-size:13px;color:var(--muted2);line-height:1.75;white-space:pre-wrap;
+  border-left:2px solid rgba(99,102,241,.3);padding-left:14px}
+
+/* RESULTS */
+#results{display:none;margin-top:20px}
+#results.show{display:block;animation:fadeUp .4s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+/* VERDICT */
+.verdict{border-radius:16px;border:1px solid;padding:22px 26px;margin-bottom:12px;position:relative;overflow:hidden}
+.verdict::before{content:'';position:absolute;inset:0;background:var(--vbg);pointer-events:none}
+.verdict-in{display:flex;align-items:center;gap:20px;position:relative}
+.donut{flex-shrink:0;width:92px;height:92px;position:relative}
+.donut svg{transform:rotate(-90deg)}
+.dt{fill:none;stroke:rgba(255,255,255,.06);stroke-width:7}
+.da{fill:none;stroke-width:7;stroke-linecap:round;transition:stroke-dashoffset 1.3s cubic-bezier(.34,1.56,.64,1)}
+.dnum{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:24px;font-weight:700;line-height:1}
+.dnum small{font-size:10px;color:var(--muted);font-weight:400;margin-top:2px;font-family:var(--mono)}
+.vbody{flex:1;min-width:0}
+.vlabel{font-size:19px;font-weight:700;letter-spacing:-.02em;margin-bottom:5px}
+.vexp{font-size:13px;color:var(--muted2);line-height:1.65;margin-bottom:9px}
+.vmeta{display:flex;gap:12px;flex-wrap:wrap;font-family:var(--mono);font-size:10px;color:var(--muted)}
+.conf{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:100px}
+.conf.high{background:rgba(16,185,129,.1);color:#6ee7b7;border:1px solid rgba(16,185,129,.2)}
+.conf.mid{background:rgba(245,158,11,.1);color:#fbbf24;border:1px solid rgba(245,158,11,.2)}
+.conf.low{background:rgba(239,68,68,.1);color:#fca5a5;border:1px solid rgba(239,68,68,.2)}
+
+/* MODULES */
+.mods{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:12px}
+@media(max-width:760px){.mods{grid-template-columns:repeat(2,1fr)}}
+.mod{background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:14px}
+.mtop{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}
+.mlbl{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.msc{font-size:20px;font-weight:700}
+.mbar{height:3px;background:rgba(255,255,255,.05);border-radius:2px;margin-bottom:7px;overflow:hidden}
+.mfill{height:100%;border-radius:2px;transition:width .8s ease}
+.mverd{font-size:11px;color:var(--muted2);line-height:1.4}
+
+/* KEY FINDINGS */
+.findings{background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px}
+.fi{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:13px;line-height:1.5}
+.fi:last-child{border-bottom:none}
+.fidot{flex-shrink:0;width:5px;height:5px;border-radius:50%;margin-top:7px;background:var(--accent)}
+
+/* SOURCES */
+.srcbox{background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px}
+.srcstats{display:flex;gap:7px;flex-wrap:wrap}
+.sstat{font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:4px}
+.sstat.g{background:rgba(16,185,129,.1);color:#6ee7b7}
+.sstat.r{background:rgba(239,68,68,.1);color:#fca5a5}
+.sstat.n{background:rgba(100,116,139,.1);color:var(--muted2)}
+.sitem{display:flex;align-items:flex-start;gap:9px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.sitem:last-child{border-bottom:none}
+.sico{width:25px;height:25px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;margin-top:1px}
+.sico.t{background:rgba(16,185,129,.1)}
+.sico.s{background:rgba(239,68,68,.1)}
+.sico.u{background:rgba(100,116,139,.1)}
+.sbody{flex:1;min-width:0}
+.sname{font-family:var(--mono);font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:.04em}
+.stitle{font-size:13px;color:var(--text);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.sdesc{font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4}
+.slink{flex-shrink:0;font-size:10px;color:var(--accent);font-family:var(--mono);
+  background:rgba(59,130,246,.07);border:1px solid rgba(59,130,246,.2);
+  border-radius:5px;padding:3px 8px;text-decoration:none;white-space:nowrap;transition:background .15s}
+.slink:hover{background:rgba(59,130,246,.14)}
+
+/* WIKI */
+.wikibox{background:rgba(59,130,246,.04);border:1px solid rgba(59,130,246,.15);border-radius:9px;padding:12px;margin-top:9px}
+.wtitle{font-weight:600;font-size:13px;margin-bottom:3px}
+.wtext{font-size:12px;color:var(--muted2);line-height:1.5}
+.wlink{font-size:10px;color:var(--accent);font-family:var(--mono);margin-top:5px;display:block;text-decoration:none}
+
+/* WHAT TO CHECK */
+.checklist{background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px}
+.ci{display:flex;align-items:flex-start;gap:8px;padding:5px 0;font-size:13px;line-height:1.5;color:var(--muted2)}
+.cicon{color:var(--accent);flex-shrink:0;margin-top:2px}
+
+/* TWO COL */
+.twocol{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+@media(max-width:560px){.twocol{grid-template-columns:1fr}}
+.colbox{background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:15px}
+.colhead{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:9px}
+.coli{display:flex;align-items:flex-start;gap:7px;padding:5px 0;font-size:12px;line-height:1.5;border-bottom:1px solid rgba(255,255,255,.04)}
+.coli:last-child{border-bottom:none}
+.cdot{flex-shrink:0;width:5px;height:5px;border-radius:50%;margin-top:5px}
+.cdot.r{background:var(--red)}.cdot.g{background:var(--green)}
+
+/* SOURCE DETAIL */
+.srcdetail{background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:15px;margin-bottom:12px}
+
+/* ERROR */
+.err{background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-radius:10px;padding:13px 16px;color:#fca5a5;font-size:13px;margin-bottom:12px;display:none}
+
+/* HOW */
+.how{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-top:44px}
+@media(max-width:540px){.how{grid-template-columns:1fr}}
+.howcard{background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:15px}
+.hicon{font-size:19px;margin-bottom:6px}
+.htitle{font-weight:600;font-size:13px;margin-bottom:3px}
+.htext{font-size:12px;color:var(--muted2);line-height:1.55}
+
+/* LANGUAGE SELECTOR */
+.lang-selector{display:flex;align-items:center;gap:8px}
+.lang-select{background:rgba(255,255,255,.02);border:1px solid var(--border2);border-radius:7px;
+  padding:6px 10px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;cursor:pointer;
+  transition:border-color .15s,background .15s}
+.lang-select:hover{border-color:rgba(59,130,246,.35);background:rgba(59,130,246,.03)}
+.lang-select:focus{outline:none;border-color:rgba(59,130,246,.5);background:rgba(59,130,246,.05)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<nav>
+  <div class="brand"><div class="brand-dot">🔍</div>FakeScope<span style="font-weight:300;color:var(--muted);font-size:12px;margin-left:4px">v3</span></div>
+  <div style="display:flex;align-items:center;gap:20px">
+    <div class="lang-selector">
+      <span style="font-size:11px;color:var(--muted);text-transform:uppercase;font-family:var(--mono);letter-spacing:.06em">🌍 Язык:</span>
+      <select id="langSelect" class="lang-select" onchange="changeLang(this.value)">
+        <option value="ru">Русский (RU)</option>
+        <option value="en">English (EN)</option>
+        <option value="de">Deutsch (DE)</option>
+        <option value="fr">Français (FR)</option>
+        <option value="es">Español (ES)</option>
+        <option value="zh">中文 (ZH)</option>
+      </select>
+    </div>
+    <div class="nav-tags">
+      <span class="ntag on">Chain-of-Thought</span>
+      <span class="ntag on">RSS</span>
+      <span class="ntag on">Wikipedia</span>
+      <span class="ntag">Без API ключей</span>
+    </div>
+  </div>
+</nav>
+
+<div class="hero">
+  <h1>Детектор фейковых новостей</h1>
+  <p>Анализ источника, текста, поиск по RSS-лентам, факт-чекинг в Wikipedia и пошаговый AI-анализ</p>
+  <div class="chips">
+    <span class="chip hi">🤖 6-шаговый Chain-of-Thought</span>
+    <span class="chip hi">📰 10 RSS-лент</span>
+    <span class="chip hi">📖 Wikipedia</span>
+    <span class="chip hi">🔍 Перекрёстная проверка</span>
+    <span class="chip">Без API ключей</span>
+  </div>
+</div>
+
+<!-- TRENDING -->
+<div>
+  <div class="sec">
+    <div class="sec-line"></div>
+    <div class="sec-title">Актуальные новости</div>
+    <div class="sec-sub">нажмите — заполнит форму</div>
+  </div>
+  <div class="tgrid" id="tGrid">
+    <div class="tloading"><div class="sring"></div>Загружаем из RSS (РБК, ТАСС, Reuters...)...</div>
+  </div>
+</div>
+
+<!-- FORM -->
+<div class="fbox">
+  <div class="field">
+    <div class="lbl">Заголовок <span class="req">обязательно</span></div>
+    <input id="fTitle" type="text" placeholder="Вставьте заголовок новости...">
+  </div>
+  <div class="field">
+    <div class="lbl">Текст <span class="opt">рекомендуется</span></div>
+    <textarea id="fText" placeholder="Вставьте текст статьи или краткое содержание..."></textarea>
+  </div>
+  <div class="field">
+    <div class="lbl">URL источника <span class="req">обязательно</span></div>
+    <input id="fUrl" type="text" placeholder="https://rbc.ru/..." oninput="onUrl(this.value)">
+    <div class="urlhint" id="urlHint">⚠️ URL обязателен — нужен для перекрёстной проверки источников</div>
+  </div>
+  <button class="btn" id="runBtn" onclick="run()">
+    <span class="bt">🔍 Запустить полный анализ</span>
+    <span class="bs"><div class="sring"></div><span style="font-size:13px">Анализируем...</span></span>
+  </button>
+</div>
+<div class="exs">
+  <span class="exl">Примеры →</span>
+  <button class="exb" onclick="loadEx('fake')">🚨 Фейк</button>
+  <button class="exb" onclick="loadEx('real')">✅ Реальная</button>
+  <button class="exb" onclick="loadEx('conspiracy')">🌀 Заговор</button>
+</div>
+
+<!-- PROGRESS -->
+<div id="progBox">
+  <div class="prog-title">Ход анализа</div>
+  <div class="steps" id="stepsWrap"></div>
+  <div class="pbar"><div class="pbarfill" id="pbarFill"></div></div>
+</div>
+
+<!-- THINKING -->
+<div id="thinkBox">
+  <div class="think-head">
+    <div class="think-title">Цепочка размышлений AI</div>
+    <div class="think-model" id="thinkModel">—</div>
+  </div>
+  <div class="think-text" id="thinkText"></div>
+</div>
+
+<!-- RESULTS -->
+<div id="results">
+  <div id="errBox" class="err"></div>
+  <div id="resBody"></div>
+</div>
+
+<!-- HOW IT WORKS -->
+<div style="margin-top:48px">
+  <div class="sec"><div class="sec-line"></div><div class="sec-title">Как работает система</div></div>
+  <div class="how">
+    <div class="howcard"><div class="hicon">🔗</div><div class="htitle">Источник (20%)</div><div class="htext">Проверяем домен по базе 50+ авторитетных изданий и списку ненадёжных сайтов. Анализируем структуру URL и HTTPS.</div></div>
+    <div class="howcard"><div class="hicon">📝</div><div class="htitle">Текст (20%)</div><div class="htext">12 эвристик: кликбейт, манипулятивные слова, капс, теории заговора, качество журналистики, цитаты, конкретные данные.</div></div>
+    <div class="howcard"><div class="hicon">📰</div><div class="htitle">RSS + Wikipedia (30%)</div><div class="htext">Ищем эту же новость в 10 RSS-лентах (РБК, ТАСС, Reuters, BBC). Проверяем факты через Wikipedia API.</div></div>
+    <div class="howcard"><div class="hicon">🤖</div><div class="htitle">Chain-of-Thought (30%)</div><div class="htext">6 шагов пошагового анализа: источник → язык → факты → противоречия → подтверждения → итоговое суждение.</div></div>
+  </div>
+</div>
+
+</div>
+<script>
+// ── LANGUAGE MANAGEMENT ───────────────────────────────
+let currentLang='ru';
+
+function changeLang(lang){
+  currentLang=lang;
+  localStorage.setItem('fakescope_lang',lang);
+  document.documentElement.lang=lang;
+  loadTrending();
+  const btn=document.getElementById('runBtn');
+  if(btn) btn.textContent=''; // Переугадим текст при смене языка
+}
+
+function getLang(){
+  const saved=localStorage.getItem('fakescope_lang');
+  if(saved&&['ru','en','de','fr','es','zh'].includes(saved)){
+    currentLang=saved;
+    document.getElementById('langSelect').value=saved;
+  }
+  return currentLang;
+}
+
+const EX = {
+  fake:{title:'ШОК!!! УЧЁНЫЕ СКРЫВАЮТ ПРАВДУ О ВАКЦИНАХ — ТАЙНА РАСКРЫТА!!!',
+        text:'Правительство скрывает от нас правду! Тайные элиты чипируют население через вакцины. Поделитесь пока не удалили!',
+        url:'http://truetruthnews123.tk/vakziny-pravda'},
+  real:{title:'Банк России сохранил ключевую ставку на уровне 21% годовых',
+        text:'Совет директоров Банка России принял решение сохранить ключевую ставку на уровне 21% годовых. По словам председателя ЦБ Эльвиры Набиуллиной, «инфляционное давление продолжает оставаться высоким». По данным Росстата, инфляция составляет около 9%.',
+        url:'https://www.rbc.ru/economics/2025/03/11/cb-rate'},
+  conspiracy:{title:'НИКТО НЕ ГОВОРИТ ОБ ЭТОМ: глубинное государство управляет погодой через HAARP',
+              text:'Учёные молчат потому что боятся. Тайное правительство использует HAARP. Они не хотят чтобы вы знали правду.',
+              url:'http://hiddentruth.ga/haarp-pravda'}
+};
+function loadEx(k){const e=EX[k];set(e.title,e.text,e.url)}
+function set(t,tx,u){
+  document.getElementById('fTitle').value=t;
+  document.getElementById('fText').value=tx;
+  document.getElementById('fUrl').value=u;
+  onUrl(u);
+}
+function onUrl(v){document.getElementById('urlHint').style.display=v.trim()?'none':'block'}
+
+// ── TRENDING ─────────────────────────────────────────
+async function loadTrending(){
+  try{
+    const res=await fetch(`/trending?lang=${currentLang}`);
+    const data=await res.json();
+    const grid=document.getElementById('tGrid');
+    if(!data.ok||!data.articles.length){
+      grid.innerHTML='<div class="tloading" style="grid-column:1/-1">Не удалось загрузить RSS. Используйте примеры ниже.</div>';
+      return;
+    }
+    grid.innerHTML=data.articles.map(a=>`
+      <div class="tcard" onclick="set(${q(a.title)},${q(a.description||'')},${q(a.url)})">
+        <div class="tsource">${esc(a.source)}</div>
+        <div class="ttitle">${esc(a.title)}</div>
+        <div class="ttime">${fmtDate(a.published)}</div>
+      </div>`).join('');
+  }catch(e){
+    document.getElementById('tGrid').innerHTML='<div class="tloading" style="grid-column:1/-1">Ошибка загрузки RSS</div>';
+  }
+}
+function q(s){return JSON.stringify(String(s||''))}
+function fmtDate(iso){
+  if(!iso)return '';
+  try{const d=new Date(iso);return d.toLocaleString('ru-RU',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}
+  catch{return iso.slice(0,10)}
+}
+
+// ── STEPS ────────────────────────────────────────────
+const STEPS=[
+  {icon:'🔗',label:'Анализ источника'},
+  {icon:'📝',label:'Анализ текста'},
+  {icon:'📰',label:'Поиск в RSS + Wikipedia'},
+  {icon:'📖',label:'Факт-чекинг'},
+  {icon:'🤖',label:'AI: цепочка размышлений (6 шагов)'},
+];
+function initSteps(){
+  document.getElementById('stepsWrap').innerHTML=STEPS.map((s,i)=>`
+    <div class="srow pending" id="sr${i}">
+      <div class="sicon">${s.icon}</div>
+      <div class="slabel">${s.label}</div>
+      <div class="stime" id="st${i}"></div>
+    </div>`).join('');
+  document.getElementById('pbarFill').style.width='0%';
+}
+function setStep(i,state,lbl=''){
+  const el=document.getElementById('sr'+i);
+  if(!el)return;
+  el.className='srow '+state;
+  if(lbl) document.getElementById('sr'+i).querySelector('.slabel').textContent=lbl;
+  document.getElementById('pbarFill').style.width=Math.round((i+1)/STEPS.length*100)+'%';
+}
+
+// ── ГЛАВНЫЙ АНАЛИЗ ────────────────────────────────────
+let analysisStart={};
+
+async function run(){
+  const title=document.getElementById('fTitle').value.trim();
+  const text =document.getElementById('fText').value.trim();
+  const url  =document.getElementById('fUrl').value.trim();
+  if(!title&&!text){showErr('Введите заголовок или текст новости');return}
+  if(!url){document.getElementById('urlHint').style.display='block';document.getElementById('fUrl').focus();return}
+
+  const btn=document.getElementById('runBtn');
+  btn.classList.add('go');btn.disabled=true;
+  hideErr();
+  document.getElementById('results').classList.remove('show');
+  document.getElementById('results').style.display='none';
+  document.getElementById('resBody').innerHTML='';
+  document.getElementById('progBox').style.display='block';
+  document.getElementById('thinkBox').style.display='none';
+  document.getElementById('thinkText').textContent='';
+  initSteps();
+
+  await runPost(title,text,url);
+  btn.classList.remove('go');btn.disabled=false;
+}
+
+async function runPost(title,text,url){
+  // Запускаем анимацию шагов параллельно с fetch
+  let stepIdx=0;
+  const timer=setInterval(()=>{
+    if(stepIdx>0) setStep(stepIdx-1,'done');
+    if(stepIdx<STEPS.length){
+      setStep(stepIdx,'active');
+      if(stepIdx===4){
+        document.getElementById('thinkBox').style.display='block';
+        document.getElementById('thinkText').textContent='Строю цепочку размышлений...';
+      }
+      stepIdx++;
+    }
+  },350);
+
+  try{
+    const res=await fetch('/analyze',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({title,text,url,lang:currentLang})
+    });
+    clearInterval(timer);
+
+    let data;
+    try{ data=await res.json(); }
+    catch(e){ showErr('Ошибка чтения ответа сервера: '+e); return; }
+
+    if(data.error){
+      STEPS.forEach((_,i)=>setStep(i,'pending'));
+      showErr(data.error);
+      return;
+    }
+
+    // Завершаем все шаги
+    STEPS.forEach((_,i)=>setStep(i,'done'));
+    document.getElementById('pbarFill').style.width='100%';
+
+    // Показываем блок размышлений AI
+    const deep=data.deep||{};
+    document.getElementById('thinkBox').style.display='block';
+    document.getElementById('thinkModel').textContent=deep.model||'';
+    document.getElementById('thinkText').textContent=deep.thinking||'(нет данных)';
+
+    renderResult(data);
+  }catch(e){
+    clearInterval(timer);
+    showErr('Ошибка соединения с сервером. Убедитесь что запущен: python app.py');
+  }
+}
+
+// ── РЕНДЕР РЕЗУЛЬТАТА ─────────────────────────────────
+function renderResult(d){
+  const sc=d.final_score;
+  const cl=scoreColor(sc);
+  const C=2*Math.PI*43;
+  const bgMap={'✅':'rgba(16,185,129,.05)','🟡':'rgba(132,204,22,.05)','⚠️':'rgba(245,158,11,.05)','🚨':'rgba(249,115,22,.05)','🔴':'rgba(239,68,68,.05)'};
+  const vbg=bgMap[d.trust_emoji]||'rgba(59,130,246,.04)';
+  const deep=d.deep||{};
+  const conf=deep.confidence||'средняя';
+  const cc=conf==='высокая'?'high':conf==='низкая'?'low':'mid';
+
+  let html=`
+  <div class="verdict" style="--vbg:${vbg};border-color:${cl}40">
+    <div class="verdict-in">
+      <div class="donut">
+        <svg width="92" height="92" viewBox="0 0 92 92">
+          <circle class="dt" cx="46" cy="46" r="43"/>
+          <circle class="da" cx="46" cy="46" r="43" stroke="${cl}"
+            stroke-dasharray="${C}" stroke-dashoffset="${C}" id="mainArc"/>
+        </svg>
+        <div class="dnum" style="color:${cl}">${sc}<small>/100</small></div>
+      </div>
+      <div class="vbody">
+        <div class="vlabel" style="color:${cl}">${d.trust_emoji} ${d.trust_level}</div>
+        <div class="vexp">${esc(d.explanation||deep.explanation||'')}</div>
+        <div class="vmeta">
+          <span>🕐 ${d.timestamp}</span>
+          <span>⚡ ${d.analysis_time}с</span>
+          <span class="conf ${cc}">уверенность: ${esc(conf)}</span>
+          ${d.url?`<a href="${esc(d.url)}" target="_blank" style="color:var(--accent)">${esc(d.source&&d.source.domain||'ссылка')}</a>`:''}
+          ${d.from_cache?'<span>💾 кэш</span>':''}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mods">
+    ${mod('📝 Текст',     d.text&&d.text.score,    d.text&&d.text.verdict)}
+    ${mod('🔗 Источник',  d.source&&d.source.score, d.source&&d.source.verdict)}
+    ${mod('📰 Cross-Ref', d.crossref&&d.crossref.score, d.crossref&&d.crossref.verdict)}
+    ${mod('🤖 AI',        deep.score, deep.verdict)}
+  </div>`;
+
+  // Ключевые находки
+  const kf=deep.key_findings||[];
+  if(kf.length){html+=`<div class="findings">
+    <div class="colhead" style="margin-bottom:10px">Ключевые находки</div>
+    ${kf.map(f=>`<div class="fi"><div class="fidot"></div>${esc(f)}</div>`).join('')}
+  </div>`}
+
+  // Источники
+  const cr=d.crossref||{};
+  const srcs=cr.sources||[];
+  html+=`<div class="srcbox">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div class="colhead">Найдено в других изданиях</div>
+      <div class="srcstats">
+        <span class="sstat g">✅ надёжных: ${cr.trusted_count||0}</span>
+        <span class="sstat r">🚨 сомн.: ${cr.suspicious_count||0}</span>
+        <span class="sstat n">всего: ${cr.total_found||0}</span>
+      </div>
+    </div>`;
+  if(!srcs.length){
+    html+=`<div style="color:var(--muted);font-size:13px;padding:6px 0">${esc(cr.explanation||'Похожие статьи не найдены.')}</div>`;
+  }else{
+    for(const s of srcs.slice(0,6)){
+      const ic=s.trusted?'sico t':s.suspicious?'sico s':'sico u';
+      const em=s.trusted?'✅':s.suspicious?'🚨':'❓';
+      const dom=(s.url||'').replace(/^https?:\/\/(www\.)?/,'').split('/')[0];
+      html+=`<div class="sitem">
+        <div class="${ic}">${em}</div>
+        <div class="sbody">
+          <div class="sname">${esc(s.source||dom)}</div>
+          <div class="stitle">${esc(s.title||'')}</div>
+          ${s.description?`<div class="sdesc">${esc(s.description)}</div>`:''}
+        </div>
+        ${s.url?`<a class="slink" href="${esc(s.url)}" target="_blank">→</a>`:''}
+      </div>`;
+    }
+  }
+  if(cr.wiki){html+=`<div class="wikibox">
+    <div class="wtitle">📖 ${esc(cr.wiki.title)}</div>
+    <div class="wtext">${esc(cr.wiki.snippet||'')}</div>
+    ${cr.wiki.url?`<a class="wlink" href="${esc(cr.wiki.url)}" target="_blank">→ читать на Wikipedia</a>`:''}
+  </div>`}
+  html+=`</div>`;
+
+  // Что проверить
+  const wtc=deep.what_to_check||[];
+  if(wtc.length){html+=`<div class="checklist">
+    <div class="colhead" style="margin-bottom:8px">💡 Что проверить читателю</div>
+    ${wtc.map(c=>`<div class="ci"><span class="cicon">→</span>${esc(c)}</div>`).join('')}
+  </div>`}
+
+  // Проблемы / позитивы
+  const issues=[...(d.text&&d.text.issues||[]),...(deep.red_flags||[])];
+  const pos=[...(d.text&&d.text.positives||[]),...(deep.positive_signs||[])];
+  if(issues.length||pos.length){html+=`<div class="twocol">
+    <div class="colbox">
+      <div class="colhead">Проблемы</div>
+      ${issues.length?issues.map(i=>`<div class="coli"><div class="cdot r"></div>${esc(i)}</div>`).join(''):'<div style="color:var(--green);font-size:12px">Не обнаружено ✓</div>'}
+    </div>
+    <div class="colbox">
+      <div class="colhead">Признаки достоверности</div>
+      ${pos.length?pos.map(p=>`<div class="coli"><div class="cdot g"></div>${esc(p)}</div>`).join(''):'<div style="color:var(--muted);font-size:12px">Не найдено</div>'}
+    </div>
+  </div>`}
+
+  // Детали источника
+  const srcDet=(d.source&&d.source.details)||[];
+  if(srcDet.length){html+=`<div class="srcdetail">
+    <div class="colhead" style="margin-bottom:9px">Детали источника: ${esc(d.source&&d.source.domain||'')}</div>
+    ${srcDet.map(det=>`<div class="coli"><div class="cdot ${det.startsWith('✅')?'g':'r'}"></div>${esc(det.replace(/^[✅⚠️🚨]\s*/,''))}</div>`).join('')}
+  </div>`}
+
+  document.getElementById('resBody').innerHTML=html;
+  const res=document.getElementById('results');
+  res.style.display='block';
+  requestAnimationFrame(()=>res.classList.add('show'));
+  setTimeout(()=>{
+    const arc=document.getElementById('mainArc');
+    if(arc) arc.style.strokeDashoffset=C-(sc/100)*C;
+  },150);
+  res.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+// ── HELPERS ───────────────────────────────────────────
+function mod(label,score,verdict){
+  const s=score??null;
+  const cl=s!==null?scoreColor(s):'var(--muted)';
+  return `<div class="mod">
+    <div class="mtop"><span class="mlbl">${label}</span><span class="msc" style="color:${cl}">${s!==null?s:'—'}</span></div>
+    <div class="mbar"><div class="mfill" style="width:${s||0}%;background:${cl}"></div></div>
+    <div class="mverd">${esc(verdict||'')}</div>
+  </div>`;
+}
+function scoreColor(s){
+  if(s>=80)return'#10b981';if(s>=65)return'#84cc16';
+  if(s>=50)return'#f59e0b';if(s>=35)return'#f97316';return'#ef4444';
+}
+function esc(str){
+  return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function showErr(msg){
+  const el=document.getElementById('errBox');
+  el.textContent='⚠️ '+msg;el.style.display='block';
+  document.getElementById('results').style.display='block';
+}
+function hideErr(){document.getElementById('errBox').style.display='none'}
+
+// ── INIT ──────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded',()=>{
+  getLang();
+  loadTrending();
+  document.getElementById('fTitle').addEventListener('keydown',e=>{if(e.key==='Enter')run()});
+});
+</script>
+</body>
+</html>
