@@ -13,7 +13,8 @@ import html as html_module, xml.etree.ElementTree as ET
 from datetime import datetime
 
 # ── Groq config ───────────────────────────────────────────────────────────────
-GROQ_API_KEY = "YOUR_GROQ_API_KEY_HERE"   # https://console.groq.com/keys
+import os
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")   # https://console.groq.com/keys
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL   = "llama3-70b-8192"          # 70B — умнее чем 8B, тоже бесплатно
 
@@ -615,7 +616,7 @@ SUPPORTED_LANGS = set(I18N.keys())
 # ═══════════════════════════════════════════════════════════════════════════════
 def _groq_request(messages: list, max_tokens: int = 600) -> str | None:
     """Базовый запрос к Groq. Возвращает строку-ответ или None."""
-    if not GROQ_API_KEY or GROQ_API_KEY == "YOUR_GROQ_API_KEY_HERE":
+    if not GROQ_API_KEY:
         return None
     payload = json.dumps({
         "model": GROQ_MODEL,
@@ -2351,7 +2352,7 @@ class FakeNewsDetector:
 
         # Groq deep analysis (если ключ задан)
         groq_r = None
-        if GROQ_API_KEY and GROQ_API_KEY != "YOUR_GROQ_API_KEY_HERE":
+        if GROQ_API_KEY:
             groq_r = groq_deep_analyze(title, text, source_r, crossref_r, bert_r, lang)
 
         deep_r = self.deep_analyzer.analyze(
