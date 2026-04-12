@@ -16,7 +16,8 @@ from datetime import datetime
 import os
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")   # https://console.groq.com/keys
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL   = "llama3-70b-8192"          # 70B — умнее чем 8B, тоже бесплатно
+GROQ_MODEL        = "llama-3.1-8b-instant"   # основная модель
+GROQ_MODEL_BACKUP = "mixtral-8x7b-32768"     # резервная если основная недоступна
 
 # ── Local BERT model path ─────────────────────────────────────────────────────
 BERT_MODEL_PATH = "./fakescope_finetuned"  # папка с model.safetensors и т.д.
@@ -615,26 +616,35 @@ SUPPORTED_LANGS = set(I18N.keys())
 # GROQ AI — умный анализ источника
 # ═══════════════════════════════════════════════════════════════════════════════
 def _groq_request(messages: list, max_tokens: int = 600) -> str | None:
-    """Базовый запрос к Groq. Возвращает строку-ответ или None."""
+    """Базовый запрос к Groq с автоматическим fallback на резервную модель."""
     if not GROQ_API_KEY:
         return None
-    payload = json.dumps({
-        "model": GROQ_MODEL,
-        "messages": messages,
-        "temperature": 0.1,
-        "max_tokens": max_tokens,
-    }).encode("utf-8")
-    try:
-        req = urllib.request.Request(
-            GROQ_API_URL, data=payload, method="POST",
-            headers={"Content-Type": "application/json",
-                     "Authorization": f"Bearer {GROQ_API_KEY}"})
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        return data["choices"][0]["message"]["content"].strip()
-    except Exception as e:
-        print(f"[Groq] Error: {e}")
-        return None
+    for model in [GROQ_MODEL, GROQ_MODEL_BACKUP]:
+        payload = json.dumps({
+            "model": model,
+            "messages": messages,
+            "temperature": 0.1,
+            "max_tokens": max_tokens,
+        }).encode("utf-8")
+        try:
+            req = urllib.request.Request(
+                GROQ_API_URL, data=payload, method="POST",
+                headers={"Content-Type": "application/json",
+                         "Authorization": f"Bearer {GROQ_API_KEY}",
+                         "User-Agent": "FakeScope/5.0"})
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            print(f"[Groq] OK with model {model}")
+            return data["choices"][0]["message"]["content"].strip()
+        except urllib.error.HTTPError as e:
+            print(f"[Groq] HTTP {e.code} with model {model}: {e.reason}")
+            if e.code == 429:
+                time.sleep(2)
+            continue
+        except Exception as e:
+            print(f"[Groq] Error with model {model}: {e}")
+            continue
+    return None
 
 
 def _parse_groq_json(text: str) -> dict | None:
