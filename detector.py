@@ -1945,54 +1945,144 @@ class CrossRefAnalyzer:
         except Exception:
             return None
 
+
+    def _groq_crossref(self, title: str, text: str, lang: str) -> dict | None:
+        """Groq AI проверяет известны ли ему подтверждения этой новости в реальных СМИ."""
+        cache_key = f"crossref:{hashlib.md5(title[:80].encode()).hexdigest()}:{lang}"
+        if cache_key in _groq_source_cache:
+            return _groq_source_cache[cache_key]
+
+        if lang == "en":
+            sys_prompt = (
+                "You are a fact-checker with knowledge of global news up to early 2025. "
+                "Given a news headline and text, determine if this story was covered by major credible outlets. "
+                "Respond ONLY with JSON, no markdown.\n"
+                '{"score":<0-100>,"trusted_count":<int>,"suspicious_count":<int>,"total_found":<int>,' +
+                '"verdict":"<short verdict>","explanation":"<1-2 sentences in English>",' +
+                '"sources":[{"title":"<headline>","source":"<outlet name>","url":"<url if known else empty>","trusted":true/false}],' +
+                '"covered_by":["<outlet1>","<outlet2>"],"not_covered":true/false}'
+            )
+            user_prompt = (
+                f'News title: "{title}"\n'
+                f'News text: "{text[:400]}"\n'
+                "Was this story or closely related events covered by major credible news outlets "
+                "(Reuters, AP, BBC, NYT, Guardian, etc.)? "
+                "List any outlets that covered similar/same story. "
+                "If no credible outlet covered it, set not_covered=true and score low. "
+                "Return ONLY the JSON."
+            )
+        else:
+            sys_prompt = (
+                "Ты фактчекер со знанием мировых новостей до начала 2025 года. "
+                "По заголовку и тексту новости определи, публиковали ли её крупные авторитетные издания. "
+                "Отвечай ТОЛЬКО JSON, без markdown.\n"
+                '{"score":<0-100>,"trusted_count":<int>,"suspicious_count":<int>,"total_found":<int>,' +
+                '"verdict":"<краткий вердикт на русском>","explanation":"<1-2 предложения на русском>",' +
+                '"sources":[{"title":"<заголовок>","source":"<название издания>","url":"<url если известен иначе пусто>","trusted":true/false}],' +
+                '"covered_by":["<издание1>","<издание2>"],"not_covered":true/false}'
+            )
+            user_prompt = (
+                f'Заголовок новости: "{title}"\n'
+                f'Текст новости: "{text[:400]}"\n'
+                "Публиковали ли эту новость или связанные события крупные авторитетные издания "
+                "(Reuters, AP, BBC, РБК, ТАСС, Guardian и т.д.)? "
+                "Перечисли издания которые писали про это. "
+                "Если авторитетные издания не писали — поставь not_covered=true и низкий score. "
+                "Верни ТОЛЬКО JSON."
+            )
+
+        raw = _groq_request([
+            {"role": "system", "content": sys_prompt},
+            {"role": "user",   "content": user_prompt},
+        ], max_tokens=500)
+
+        result = _parse_groq_json(raw)
+        if not result:
+            return None
+
+        result["score"]           = max(0, min(95, int(result.get("score", 50))))
+        result["trusted_count"]   = int(result.get("trusted_count", 0))
+        result["suspicious_count"]= int(result.get("suspicious_count", 0))
+        result["total_found"]     = int(result.get("total_found", 0))
+        if not isinstance(result.get("sources"), list):
+            result["sources"] = []
+        # Марим источники как trusted
+        for s in result["sources"]:
+            dom = re.sub(r'^https?://(www\.)?', '', s.get("url","")).split('/')[0].lower()
+            s["trusted"] = s.get("trusted", False) or any(
+                dom == t2 or dom.endswith('.' + t2) for t2 in TRUSTED_SOURCES)
+
+        _groq_source_cache[cache_key] = result
+        return result
+
     def analyze(self, title: str, text: str, lang: str = "ru") -> dict:
         query = self._keywords(title, text) or title[:60]
-        rss  = self.searcher.search(query)
-        ddg  = self.searcher.search_duckduckgo(query)
+
+        # ── 1. Groq AI cross-reference (если доступен) ────────────────────────
+        groq_crossref = None
+        if GROQ_API_KEY:
+            groq_crossref = self._groq_crossref(title, text, lang)
+
+        # ── 2. Wikipedia (быстро и надёжно) ──────────────────────────────────
         wiki = self._wiki(query, lang)
         if not wiki and lang != "en":
             wiki = self._wiki(query, "en")
 
-        all_src, seen = [], set()
-        for art in rss + ddg:
-            u = art.get("url", "")
-            if u and u not in seen:
-                seen.add(u)
-                dom = re.sub(r'^https?://(www\.)?', '', u).split('/')[0].lower()
-                art["trusted"]    = any(dom == t2 or dom.endswith('.' + t2) for t2 in TRUSTED_SOURCES)
-                art["suspicious"] = any(dom == s or dom.endswith('.' + s) for s in SUSPICIOUS_SOURCES)
-                all_src.append(art)
+        # ── 3. RSS поиск — только если Groq недоступен ────────────────────────
+        all_src = []
+        if not groq_crossref:
+            rss = self.searcher.search(query)
+            ddg = self.searcher.search_duckduckgo(query)
+            seen = set()
+            for art in rss + ddg:
+                u = art.get("url", "")
+                if u and u not in seen:
+                    seen.add(u)
+                    dom = re.sub(r'^https?://(www\.)?', '', u).split('/')[0].lower()
+                    art["trusted"]    = any(dom == t2 or dom.endswith('.' + t2) for t2 in TRUSTED_SOURCES)
+                    art["suspicious"] = any(dom == s or dom.endswith('.' + s) for s in SUSPICIOUS_SOURCES)
+                    # Показываем только надёжные или подозрительные — не мусор
+                    if art["trusted"] or art["suspicious"]:
+                        all_src.append(art)
 
-        tc = sum(1 for s in all_src if s.get("trusted"))
-        sc = sum(1 for s in all_src if s.get("suspicious"))
-        total = len(all_src)
-
-        if total == 0 and not wiki:
-            score, verdict = 28, tr(lang, "no_confirmations")
-            explanation = tr(lang, "no_other_sources")
-        elif tc >= 4:
-            score, verdict = 92, tr(lang, "confirmed_by", n=tc)
-            explanation = tr(lang, "confirmed_many", n=tc)
-        elif tc >= 2:
-            score, verdict = 75, tr(lang, "confirmed_by", n=tc)
-            explanation = tr(lang, "confirmed_several")
-        elif tc == 1:
-            score, verdict = 60, tr(lang, "one_reliable")
-            explanation = tr(lang, "one_source_covers")
-        elif sc > 0 and tc == 0:
-            score, verdict = 18, tr(lang, "only_suspicious")
-            explanation = tr(lang, "only_unreliable")
-        elif total >= 3:
-            score, verdict = 50, tr(lang, "sources_found", n=total)
-            explanation = tr(lang, "topic_exists")
+        # ── 4. Считаем результат ──────────────────────────────────────────────
+        if groq_crossref:
+            # Groq дал оценку — используем её
+            tc    = groq_crossref.get("trusted_count", 0)
+            sc    = groq_crossref.get("suspicious_count", 0)
+            total = groq_crossref.get("total_found", 0)
+            score = groq_crossref.get("score", 50)
+            verdict     = groq_crossref.get("verdict", tr(lang, "few_confirmations"))
+            explanation = groq_crossref.get("explanation", "")
+            all_src     = groq_crossref.get("sources", [])
         else:
-            score, verdict = 38, tr(lang, "few_confirmations")
-            explanation = tr(lang, "very_few_sources")
+            tc    = sum(1 for s in all_src if s.get("trusted"))
+            sc    = sum(1 for s in all_src if s.get("suspicious"))
+            total = len(all_src)
+            if total == 0 and not wiki:
+                score, verdict = 45, tr(lang, "few_confirmations")
+                explanation = "Поиск в реальном времени недоступен." if lang=="ru" else "Real-time search unavailable."
+            elif tc >= 4:
+                score, verdict = 92, tr(lang, "confirmed_by", n=tc)
+                explanation = tr(lang, "confirmed_many", n=tc)
+            elif tc >= 2:
+                score, verdict = 75, tr(lang, "confirmed_by", n=tc)
+                explanation = tr(lang, "confirmed_several")
+            elif tc == 1:
+                score, verdict = 60, tr(lang, "one_reliable")
+                explanation = tr(lang, "one_source_covers")
+            elif sc > 0 and tc == 0:
+                score, verdict = 18, tr(lang, "only_suspicious")
+                explanation = tr(lang, "only_unreliable")
+            else:
+                score, verdict = 45, tr(lang, "few_confirmations")
+                explanation = "Недостаточно данных для перекрёстной проверки." if lang=="ru" else "Insufficient data for cross-reference."
 
         if wiki: score = min(95, score + 7)
         return {"score": score, "verdict": verdict, "explanation": explanation,
                 "sources": all_src[:10], "trusted_count": tc, "suspicious_count": sc,
-                "total_found": total, "wiki": wiki, "query_used": query}
+                "total_found": total, "wiki": wiki, "query_used": query,
+                "groq_used": groq_crossref is not None}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
