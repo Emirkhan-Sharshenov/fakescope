@@ -139,8 +139,7 @@ def analyze_stream():
             yield send("progress", {"step":6,"total":6,"label":steps[5]})
             import detector as det_module
             groq_r = None
-            groq_active = (det_module.GROQ_API_KEY and
-                           det_module.GROQ_API_KEY != "YOUR_GROQ_API_KEY_HERE")
+            groq_active = bool(det_module.GROQ_API_KEY)
             if groq_active:
                 groq_r = det_module.groq_deep_analyze(title, text, source_r, crossref_r, bert_r, lang)
 
@@ -222,8 +221,7 @@ def languages():
 @app.route('/status')
 def status():
     import detector as det_module
-    groq_active = (bool(det_module.GROQ_API_KEY) and
-                   det_module.GROQ_API_KEY != "YOUR_GROQ_API_KEY_HERE")
+    groq_active = bool(det_module.GROQ_API_KEY)
     bert_loaded = detector.bert._pipe is not None
     return jsonify({
         "status": "ok",
@@ -246,8 +244,7 @@ def status():
 if __name__ == '__main__':
     import detector as det_module
     bert_ok = detector.bert._pipe is not None
-    groq_ok = (bool(det_module.GROQ_API_KEY) and
-               det_module.GROQ_API_KEY != "YOUR_GROQ_API_KEY_HERE")
+    groq_ok = bool(det_module.GROQ_API_KEY)
     print("\n" + "="*60)
     print("  FakeScope v5  —  http://localhost:5000")
     print(f"  BERT model:  {'✅ loaded' if bert_ok else '❌ not found (place in ./fakescope_finetuned)'}")

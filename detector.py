@@ -11,19 +11,16 @@ FakeScope v5 — detector.py
 import re, json, time, hashlib, urllib.request, urllib.parse
 import html as html_module, xml.etree.ElementTree as ET
 from datetime import datetime
-import os
-from dotenv import load_dotenv
-
-# Загрузить переменные окружения из .env файла
-load_dotenv()
 
 # ── Groq config ───────────────────────────────────────────────────────────────
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")   # https://console.groq.com/keys
+import os
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")   # https://console.groq.com/keys
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL   = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+GROQ_MODEL        = "llama-3.1-8b-instant"   # основная модель
+GROQ_MODEL_BACKUP = "mixtral-8x7b-32768"     # резервная если основная недоступна
 
 # ── Local BERT model path ─────────────────────────────────────────────────────
-BERT_MODEL_PATH = os.getenv("BERT_MODEL_PATH", "./fakescope_finetuned")
+BERT_MODEL_PATH = "./fakescope_finetuned"  # папка с model.safetensors и т.д.
 
 # ── Wikipedia APIs ────────────────────────────────────────────────────────────
 WIKI_APIS = {
@@ -619,31 +616,35 @@ SUPPORTED_LANGS = set(I18N.keys())
 # GROQ AI — умный анализ источника
 # ═══════════════════════════════════════════════════════════════════════════════
 def _groq_request(messages: list, max_tokens: int = 600) -> str | None:
-    """Базовый запрос к Groq. Возвращает строку-ответ или None."""
-    if not GROQ_API_KEY or GROQ_API_KEY == "YOUR_GROQ_API_KEY_HERE":
+    """Базовый запрос к Groq с автоматическим fallback на резервную модель."""
+    if not GROQ_API_KEY:
         return None
-    try:
-        import requests
-        headers = {
-            "Authorization": f"Bearer {GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        data = {
-            "model": GROQ_MODEL,
+    for model in [GROQ_MODEL, GROQ_MODEL_BACKUP]:
+        payload = json.dumps({
+            "model": model,
             "messages": messages,
             "temperature": 0.1,
             "max_tokens": max_tokens,
-        }
-        resp = requests.post(GROQ_API_URL, headers=headers, json=data, timeout=15)
-        if resp.status_code == 200:
-            response_data = resp.json()
-            return response_data["choices"][0]["message"]["content"].strip()
-        else:
-            print(f"[Groq] Error: HTTP {resp.status_code} - {resp.text}")
-            return None
-    except Exception as e:
-        print(f"[Groq] Error: {e}")
-        return None
+        }).encode("utf-8")
+        try:
+            req = urllib.request.Request(
+                GROQ_API_URL, data=payload, method="POST",
+                headers={"Content-Type": "application/json",
+                         "Authorization": f"Bearer {GROQ_API_KEY}",
+                         "User-Agent": "FakeScope/5.0"})
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            print(f"[Groq] OK with model {model}")
+            return data["choices"][0]["message"]["content"].strip()
+        except urllib.error.HTTPError as e:
+            print(f"[Groq] HTTP {e.code} with model {model}: {e.reason}")
+            if e.code == 429:
+                time.sleep(2)
+            continue
+        except Exception as e:
+            print(f"[Groq] Error with model {model}: {e}")
+            continue
+    return None
 
 
 def _parse_groq_json(text: str) -> dict | None:
@@ -896,45 +897,129 @@ class SourceAnalyzer:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# TEXT ANALYZER
+# TEXT ANALYZER — 25 критериев
 # ═══════════════════════════════════════════════════════════════════════════════
 class TextAnalyzer:
-    def analyze(self, title: str, text: str, lang: str = "ru") -> dict:
-        full = f"{title} {text}".lower()
-        issues, positives, checks = [], [], {}
-        score = 68
+    """
+    25 независимых критериев оценки текста новости.
+    Каждый критерий либо снижает, либо повышает итоговый балл.
+    Итог: 0–100, где 100 = максимально достоверный текст.
+    """
 
-        # Clickbait (все языки)
+    # ── Satire / parody markers ────────────────────────────────────────────────
+    SATIRE_DOMAINS  = {"theonion.com","babylonbee.com","satirewire.com",
+                       "borowitz.com","thebeaverton.com","waterfordwhispersnews.com"}
+    SATIRE_MARKERS  = [r'\(сатира\)',r'\(пародия\)',r'\(юмор\)',
+                       r'\(satire\)',r'\(parody\)',r'\(humor\)',r'\(fiction\)']
+
+    # ── Hedge / uncertainty language (bad sign) ────────────────────────────────
+    HEDGE_PATTERNS  = [
+        r'якобы\s+\w+',r'предположительно\s+\w+',r'по слухам',
+        r'allegedly\s+\w+',r'reportedly\s+\w+',r'rumored to',
+        r'angeblich\s+\w+',r'soll\s+\w+',
+        r'apparemment\s+\w+',r'prétendument',
+        r'supuestamente\s+\w+',r'al parecer',
+    ]
+    # ── Urgency / fear appeal ─────────────────────────────────────────────────
+    URGENCY_PATTERNS = [
+        r'поделитесь\s+(пока|сейчас|немедленно)',r'срочно\s+перешли',
+        r'share\s+(this|now|before)',r'forward\s+this',r'spread\s+the\s+word',
+        r'teilen\s+sie\s+jetzt',r'partagez\s+maintenant',r'comparte\s+ahora',
+    ]
+    # ── False balance / both-sidesism ─────────────────────────────────────────
+    FALSE_BALANCE = [
+        r'одни говорят.{5,40}другие говорят',
+        r'some say.{5,40}others say',
+        r'manche sagen.{5,40}andere sagen',
+    ]
+    # ── Missing context signals ────────────────────────────────────────────────
+    MISSING_CONTEXT = [
+        r'без\s+контекста',r'вырвано\s+из\s+контекста',
+        r'out\s+of\s+context',r'without\s+context',
+        r'aus\s+dem\s+Kontext',r'hors\s+contexte',r'fuera\s+de\s+contexto',
+    ]
+    # ── Personalised attack / ad hominem ──────────────────────────────────────
+    AD_HOMINEM = [
+        r'(предатель|враг народа|продался|куплен)',
+        r'(traitor|enemy of the people|paid shill|bought)',
+        r'(Verräter|Volksfeind|gekauft)',
+        r'(traître|vendu|ennemi du peuple)',
+        r'(traidor|vendido|enemigo del pueblo)',
+    ]
+    # ── Pseudo-scientific claims ───────────────────────────────────────────────
+    PSEUDOSCIENCE = [
+        r'(доказано учёными|100%\s+эффективн|чудо[-\s]средство)',
+        r'(врачи молчат|скрытое лечение|народное средство\s+от)',
+        r'(proven by scientists|miracle cure|doctors don.t want)',
+        r'(von Wissenschaftlern bewiesen|Wundermittel)',
+        r'(prouvé par les scientifiques|remède miracle)',
+        r'(probado por científicos|cura milagrosa)',
+    ]
+    # ── Author / byline signals ────────────────────────────────────────────────
+    AUTHOR_SIGNALS = [
+        r'(корреспондент|журналист|редакция|обозреватель)',
+        r'(correspondent|journalist|reporter|editor|staff writer)',
+        r'(Korrespondent|Journalist|Redaktion)',
+        r'(correspondant|journaliste|rédaction)',
+        r'(corresponsal|periodista|redacción)',
+    ]
+    # ── Specific named sources (good sign) ────────────────────────────────────
+    NAMED_SOURCES = [
+        r'(министр|президент|директор|генерал|профессор|доктор|глава)\s+[А-ЯЁA-Z]',
+        r'(minister|president|director|general|professor|doctor|chief)\s+[A-Z]',
+        r'(Minister|Präsident|Direktor|Professor|Doktor)\s+[A-Z]',
+        r'(ministre|président|directeur|général|professeur|docteur)\s+[A-Z]',
+        r'(ministro|presidente|director|general|profesor|doctor)\s+[A-Z]',
+    ]
+    # ── Hyperlinks / references pattern ───────────────────────────────────────
+    HYPERLINKS = r'https?://\S+'
+
+    def analyze(self, title: str, text: str, lang: str = "ru") -> dict:
+        full  = f"{title} {text}".lower()
+        full_orig = f"{title} {text}"   # оригинальный регистр для некоторых проверок
+        issues, positives, checks = [], [], {}
+        score = 65   # базовый балл (чуть ниже чем раньше — критериев больше)
+        criteria = {}  # детальный отчёт по каждому критерию
+
+        # ── КРИТЕРИЙ 1: Кликбейт в заголовке ─────────────────────────────────
         all_cb = CLICKBAIT_RU + CLICKBAIT_EN + CLICKBAIT_DE + CLICKBAIT_FR + CLICKBAIT_ES
         cb = [p for p in all_cb if re.search(p, title, re.IGNORECASE)]
         checks["clickbait"] = len(cb)
+        criteria["C01_clickbait"] = {"found": len(cb), "penalty": min(30, len(cb)*10)}
         if cb:
-            score -= min(28, len(cb) * 10)
+            score -= min(30, len(cb) * 10)
             issues.append(tr(lang, "clickbait_markers", n=len(cb)))
 
-        # Emotional triggers
+        # ── КРИТЕРИЙ 2: Эмоциональные триггеры ───────────────────────────────
         trig = [x for x in EMOTIONAL_TRIGGERS if x in full]
         checks["triggers"] = len(trig)
-        if len(trig) >= 4:
-            score -= 18; issues.append(tr(lang, "strong_emotional", n=len(trig)))
+        criteria["C02_emotional"] = {"found": len(trig), "words": trig[:5]}
+        if len(trig) >= 5:
+            score -= 22; issues.append(tr(lang, "strong_emotional", n=len(trig)))
+        elif len(trig) >= 3:
+            score -= 12; issues.append(tr(lang, "strong_emotional", n=len(trig)))
         elif len(trig) >= 2:
-            score -= 8; issues.append(tr(lang, "emotional_markers", markers=", ".join(trig[:3])))
+            score -= 6; issues.append(tr(lang, "emotional_markers", markers=", ".join(trig[:3])))
 
-        # ALL CAPS
+        # ── КРИТЕРИЙ 3: ЗАГЛАВНЫЕ БУКВЫ в заголовке ──────────────────────────
         upper = [w for w in title.split() if w.isupper() and len(w) > 2]
         checks["upper"] = len(upper)
+        criteria["C03_allcaps"] = {"count": len(upper)}
         if len(upper) > 3:
             score -= 12; issues.append(tr(lang, "all_caps"))
-
-        # Exclamations
-        excl = title.count('!')
-        checks["excl"] = excl
-        if excl >= 3:
-            score -= 12; issues.append(tr(lang, "exclamation_abuse", n=excl))
-        elif excl >= 2:
+        elif len(upper) > 1:
             score -= 5
 
-        # Conspiracy patterns
+        # ── КРИТЕРИЙ 4: Восклицательные знаки ────────────────────────────────
+        excl = title.count('!')
+        checks["excl"] = excl
+        criteria["C04_exclamation"] = {"count": excl}
+        if excl >= 3:
+            score -= 14; issues.append(tr(lang, "exclamation_abuse", n=excl))
+        elif excl >= 2:
+            score -= 6
+
+        # ── КРИТЕРИЙ 5: Теории заговора ───────────────────────────────────────
         ch = sum(1 for p in [
             r'(правительство|власти)\s+(скрывает|прячет)',
             r'(учёные|врачи)\s+(молчат|боятся|куплены)',
@@ -948,73 +1033,774 @@ class TextAnalyzer:
             r'(gobierno|autoridades)\s+(oculta|esconde)',
         ] if re.search(p, full, re.I))
         checks["conspiracy"] = ch
+        criteria["C05_conspiracy"] = {"patterns": ch}
         if ch >= 2:
-            score -= 25; issues.append(tr(lang, "conspiracy_theory"))
+            score -= 28; issues.append(tr(lang, "conspiracy_theory"))
         elif ch == 1:
-            score -= 12; issues.append(tr(lang, "conspiracy_elements"))
+            score -= 14; issues.append(tr(lang, "conspiracy_elements"))
 
-        # Word count
+        # ── КРИТЕРИЙ 6: Длина текста ──────────────────────────────────────────
         wc = len(text.split())
         checks["words"] = wc
+        criteria["C06_length"] = {"words": wc}
         if wc < 20:
-            score -= 15; issues.append(tr(lang, "too_short", n=wc))
+            score -= 18; issues.append(tr(lang, "too_short", n=wc))
         elif wc < 60:
-            score -= 7; issues.append(tr(lang, "short_text", n=wc))
+            score -= 8; issues.append(tr(lang, "short_text", n=wc))
+        elif wc >= 400:
+            score += 9; positives.append(tr(lang, "detailed_text", n=wc))
         elif wc >= 200:
-            score += 6; positives.append(tr(lang, "detailed_text", n=wc))
+            score += 5; positives.append(tr(lang, "detailed_text", n=wc))
 
-        # Fact signals
+        # ── КРИТЕРИЙ 7: Ссылки на источники (факт-сигналы) ───────────────────
         fh = sum(1 for w in FACT_SIGNALS if w in full)
         checks["facts"] = fh
-        if fh >= 4:
-            score += 10; positives.append(tr(lang, "journalistic_refs"))
-        elif fh >= 2:
-            score += 5; positives.append(tr(lang, "has_refs"))
+        criteria["C07_fact_signals"] = {"count": fh}
+        if fh >= 5:
+            score += 12; positives.append(tr(lang, "journalistic_refs"))
+        elif fh >= 3:
+            score += 7; positives.append(tr(lang, "journalistic_refs"))
+        elif fh >= 1:
+            score += 3; positives.append(tr(lang, "has_refs"))
 
-        # Quotes
-        qt = len(re.findall(r'[«»""][^«»""]{10,}[«»""]', text))
+        # ── КРИТЕРИЙ 8: Прямые цитаты ────────────────────────────────────────
+        qt = len(re.findall(r'[«»""][^«»""]{10,100}[«»""]', text))
         checks["quotes"] = qt
-        if qt >= 2:
-            score += 8; positives.append(tr(lang, "direct_quotes", n=qt))
+        criteria["C08_quotes"] = {"count": qt}
+        if qt >= 3:
+            score += 10; positives.append(tr(lang, "direct_quotes", n=qt))
+        elif qt >= 2:
+            score += 7; positives.append(tr(lang, "direct_quotes", n=qt))
         elif qt == 1:
             score += 4; positives.append(tr(lang, "one_quote"))
 
-        # Numbers & dates
+        # ── КРИТЕРИЙ 9: Конкретные числа и даты ──────────────────────────────
         nums = len(re.findall(
-            r'\b\d+[.,]?\d*\s*(млн|млрд|тыс|%|руб|\$|₽|€|million|billion|thousand|percent|Mio|Mrd|Millionen|Milliarden|millions|milliards|millones|miles de millones)',
+            r'\b\d+[.,]?\d*\s*(млн|млрд|тыс|%|руб|\$|₽|€|тг|сом|'
+            r'million|billion|thousand|percent|Mio|Mrd|Millionen|Milliarden|'
+            r'millions|milliards|millones|miles de millones)',
             text, re.I))
         dts = len(re.findall(
-            r'\b\d{1,2}\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря'
+            r'\b\d{1,2}\s*(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря'
             r'|January|February|March|April|May|June|July|August|September|October|November|December'
-            r'|Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember'
-            r'|janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre'
+            r'|Januar|Februar|März|Juni|Juli|Oktober|Dezember'
+            r'|janvier|février|mars|avril|juin|juillet|août|octobre|novembre|décembre'
             r'|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)',
             text, re.I))
-        checks["numbers"] = nums + dts
-        if nums + dts >= 3:
-            score += 7; positives.append(tr(lang, "numbers_dates"))
-        elif nums + dts >= 1:
-            score += 3
+        years = len(re.findall(r'\b(19|20)\d{2}\b', text))
+        checks["numbers"] = nums + dts + years
+        criteria["C09_numbers"] = {"nums": nums, "dates": dts, "years": years}
+        if nums + dts + years >= 4:
+            score += 9; positives.append(tr(lang, "numbers_dates"))
+        elif nums + dts + years >= 2:
+            score += 5; positives.append(tr(lang, "numbers_dates"))
+        elif nums + dts + years >= 1:
+            score += 2
 
-        # Anonymous experts
+        # ── КРИТЕРИЙ 10: Анонимные «эксперты» ────────────────────────────────
         anon_pats = [
             r'эксперты говорят', r'учёные выяснили', r'источники сообщают',
-            r'experts say', r'scientists claim', r'sources report', r'insiders reveal',
-            r'Experten sagen', r'Quellen berichten',
-            r'experts affirment', r'sources indiquent',
-            r'expertos dicen', r'fuentes informan',
+            r'эксперты считают', r'по данным источников',
+            r'experts say', r'scientists claim', r'sources report',
+            r'insiders reveal', r'anonymous sources', r'sources familiar with',
+            r'Experten sagen', r'Quellen berichten', r'Insider berichten',
+            r'experts affirment', r'sources indiquent', r'initiés révèlent',
+            r'expertos dicen', r'fuentes informan', r'fuentes anónimas',
         ]
         anon = sum(1 for p in anon_pats if re.search(p, full))
-        if anon >= 2:
+        checks["anon_experts"] = anon
+        criteria["C10_anon_experts"] = {"count": anon}
+        if anon >= 3:
+            score -= 14; issues.append(tr(lang, "anon_experts", n=anon))
+        elif anon >= 2:
             score -= 8; issues.append(tr(lang, "anon_experts", n=anon))
 
+        # ── КРИТЕРИЙ 11: Именованные источники (хороший знак) ────────────────
+        named = sum(1 for p in self.NAMED_SOURCES if re.search(p, full_orig))
+        checks["named_sources"] = named
+        criteria["C11_named_sources"] = {"count": named}
+        if named >= 3:
+            score += 10; positives.append("Конкретные персоны упомянуты (≥3)" if lang == "ru" else "Named people cited (≥3)")
+        elif named >= 1:
+            score += 5; positives.append("Конкретная персона упомянута" if lang == "ru" else "Named person cited")
+
+        # ── КРИТЕРИЙ 12: Автор / байлайн ─────────────────────────────────────
+        has_author = any(re.search(p, full, re.I) for p in self.AUTHOR_SIGNALS)
+        checks["has_author"] = has_author
+        criteria["C12_author"] = {"found": has_author}
+        if has_author:
+            score += 5; positives.append("Упоминание автора/редакции" if lang == "ru" else "Author/byline present")
+
+        # ── КРИТЕРИЙ 13: Гиперссылки в тексте ────────────────────────────────
+        links = re.findall(self.HYPERLINKS, text)
+        checks["links"] = len(links)
+        criteria["C13_links"] = {"count": len(links)}
+        if len(links) >= 2:
+            score += 6; positives.append("Гиперссылки на источники" if lang == "ru" else "Hyperlinks to sources")
+        elif len(links) == 1:
+            score += 3
+
+        # ── КРИТЕРИЙ 14: Срочность/призыв к распространению ──────────────────
+        urgency = sum(1 for p in self.URGENCY_PATTERNS if re.search(p, full, re.I))
+        checks["urgency"] = urgency
+        criteria["C14_urgency"] = {"count": urgency}
+        if urgency >= 2:
+            score -= 18; issues.append("Агрессивный призыв распространять" if lang == "ru" else "Aggressive share-bait")
+        elif urgency == 1:
+            score -= 10; issues.append("Призыв срочно распространить" if lang == "ru" else "Urgency share appeal")
+
+        # ── КРИТЕРИЙ 15: Псевдонаука / чудо-средства ─────────────────────────
+        pseudo = sum(1 for p in self.PSEUDOSCIENCE if re.search(p, full, re.I))
+        checks["pseudoscience"] = pseudo
+        criteria["C15_pseudoscience"] = {"count": pseudo}
+        if pseudo >= 2:
+            score -= 20; issues.append("Псевдонаучные утверждения" if lang == "ru" else "Pseudoscientific claims")
+        elif pseudo == 1:
+            score -= 10; issues.append("Сомнительные научные утверждения" if lang == "ru" else "Dubious scientific claims")
+
+        # ── КРИТЕРИЙ 16: Ad hominem / личные нападки ─────────────────────────
+        ad_hom = sum(1 for p in self.AD_HOMINEM if re.search(p, full, re.I))
+        checks["ad_hominem"] = ad_hom
+        criteria["C16_ad_hominem"] = {"count": ad_hom}
+        if ad_hom >= 2:
+            score -= 15; issues.append("Личные нападки вместо аргументов" if lang == "ru" else "Ad hominem attacks")
+        elif ad_hom == 1:
+            score -= 7
+
+        # ── КРИТЕРИЙ 17: Сатира / пародия ────────────────────────────────────
+        is_satire = any(re.search(p, full, re.I) for p in self.SATIRE_MARKERS)
+        checks["satire"] = is_satire
+        criteria["C17_satire"] = {"detected": is_satire}
+        if is_satire:
+            score -= 30; issues.append("Маркеры сатиры/пародии — не реальная новость" if lang == "ru"
+                                        else "Satire/parody markers — not real news")
+
+        # ── КРИТЕРИЙ 18: Неопределённые утверждения (hedge) ──────────────────
+        hedges = sum(1 for p in self.HEDGE_PATTERNS if re.search(p, full, re.I))
+        checks["hedges"] = hedges
+        criteria["C18_hedge"] = {"count": hedges}
+        if hedges >= 3:
+            score -= 10; issues.append("Много предположительных утверждений" if lang == "ru"
+                                        else "Many unverified hedged claims")
+        elif hedges >= 1:
+            score -= 4
+
+        # ── КРИТЕРИЙ 19: Соотношение заголовок/текст (кликбейт-разрыв) ───────
+        if wc >= 20:
+            title_words = set(re.sub(r'[^\w]', ' ', title.lower()).split())
+            text_words  = set(re.sub(r'[^\w]', ' ', text.lower()).split())
+            stop = {"и","в","на","с","по","the","a","an","is","was","to","of","in"}
+            title_kw = title_words - stop
+            if title_kw:
+                overlap = len(title_kw & text_words) / len(title_kw)
+                checks["title_text_overlap"] = round(overlap, 2)
+                criteria["C19_title_gap"] = {"overlap": round(overlap, 2)}
+                if overlap < 0.15:
+                    score -= 12; issues.append("Заголовок не соответствует тексту" if lang == "ru"
+                                               else "Headline-text mismatch (clickbait gap)")
+                elif overlap > 0.5:
+                    score += 4; positives.append("Заголовок соответствует тексту" if lang == "ru"
+                                                  else "Headline matches text content")
+
+        # ── КРИТЕРИЙ 20: Множественные вопросительные заголовки ──────────────
+        q_marks = title.count('?')
+        checks["questions"] = q_marks
+        criteria["C20_questions"] = {"count": q_marks}
+        if q_marks >= 2:
+            score -= 8; issues.append("Множественные вопросы в заголовке" if lang == "ru"
+                                       else "Multiple questions in headline (Betteridge's law)")
+        elif q_marks == 1 and wc < 40:
+            score -= 4  # вопрос + короткий текст = подозрительно
+
+        # ── КРИТЕРИЙ 21: Структура текста (абзацы) ────────────────────────────
+        paragraphs = len([p for p in text.split('\n') if len(p.strip()) > 30])
+        checks["paragraphs"] = paragraphs
+        criteria["C21_structure"] = {"paragraphs": paragraphs}
+        if paragraphs >= 4:
+            score += 6; positives.append("Структурированный текст (≥4 абзаца)" if lang == "ru"
+                                          else "Well-structured text (≥4 paragraphs)")
+        elif paragraphs >= 2:
+            score += 3
+
+        # ── КРИТЕРИЙ 22: Временны́е маркеры (актуальность) ───────────────────
+        time_markers = len(re.findall(
+            r'\b(сегодня|вчера|сейчас|недавно|только что|ранее|в\s+\w+\s+году'
+            r'|today|yesterday|now|recently|just|earlier|this\s+\w+|last\s+\w+'
+            r'|heute|gestern|jetzt|kürzlich|aujourd.hui|hier|maintenant|récemment'
+            r'|hoy|ayer|ahora|recientemente)\b',
+            full, re.I))
+        checks["time_markers"] = time_markers
+        criteria["C22_time"] = {"count": time_markers}
+        if time_markers >= 2:
+            score += 4; positives.append("Временны́е маркеры актуальности" if lang == "ru"
+                                           else "Temporal markers of recency")
+
+        # ── КРИТЕРИЙ 23: Противоречивые факты внутри текста ──────────────────
+        contradictions = 0
+        contra_pairs = [
+            ("все знают", "никто не знает"), ("everyone knows", "nobody knows"),
+            ("всегда", "никогда"), ("always", "never"),
+            ("доказано", "не доказано"), ("proven", "unproven"),
+        ]
+        for w1, w2 in contra_pairs:
+            if w1 in full and w2 in full:
+                contradictions += 1
+        checks["contradictions"] = contradictions
+        criteria["C23_contradictions"] = {"count": contradictions}
+        if contradictions >= 2:
+            score -= 16; issues.append("Внутренние противоречия в тексте" if lang == "ru"
+                                        else "Internal contradictions in text")
+        elif contradictions == 1:
+            score -= 7
+
+        # ── КРИТЕРИЙ 24: Сенсационные обобщения (все/никогда/всегда) ─────────
+        absolutes = len(re.findall(
+            r'\b(абсолютно все|всегда|никогда|каждый|everywhere|always|never|everyone|'
+            r'nobody|absolut\s+alle|immer|niemals|toujours|jamais|tout\s+le\s+monde|'
+            r'siempre|nunca|todo\s+el\s+mundo)\b', full, re.I))
+        checks["absolutes"] = absolutes
+        criteria["C24_absolutes"] = {"count": absolutes}
+        if absolutes >= 4:
+            score -= 10; issues.append("Чрезмерные абсолютные утверждения" if lang == "ru"
+                                        else "Excessive absolute statements")
+        elif absolutes >= 2:
+            score -= 4
+
+        # ── КРИТЕРИЙ 25: Баланс позитив/негатив (тональность) ────────────────
+        positive_words = len(re.findall(
+            r'\b(подтверждён|доказан|официально|успешно|достигнут|открыт|улучшен'
+            r'|confirmed|proven|officially|successfully|achieved|improved|announced'
+            r'|bestätigt|erfolgreich|offiziell|confirmé|officiellement|confirmado|exitosamente)\b',
+            full, re.I))
+        negative_words = len(re.findall(
+            r'\b(ужас|катастрофа|конец|разрушен|уничтожен|обман|ложь|смерть|гибель'
+            r'|horror|catastrophe|disaster|destroyed|annihilated|collapse|death|doom'
+            r'|Katastrophe|Untergang|catastrophe|désastre|destruction|catástrofe|desastre)\b',
+            full, re.I))
+        checks["sentiment_pos"] = positive_words
+        checks["sentiment_neg"] = negative_words
+        criteria["C25_sentiment"] = {"positive": positive_words, "negative": negative_words}
+        if negative_words >= 5 and positive_words == 0:
+            score -= 8; issues.append("Исключительно негативная тональность" if lang == "ru"
+                                       else "Exclusively negative tone (fear-mongering)")
+        elif positive_words >= 3:
+            score += 3
+
+        # ══════════════════════════════════════════════════════════════════════
+        # БЛОК B — ЛИНГВИСТИЧЕСКИЙ АНАЛИЗ (критерии 26–35)
+        # ══════════════════════════════════════════════════════════════════════
+
+        # ── КРИТЕРИЙ 26: Средняя длина предложения ────────────────────────────
+        sentences = re.split(r'[.!?]+', text)
+        sentences = [s.strip() for s in sentences if len(s.strip()) > 5]
+        if sentences:
+            avg_sent = sum(len(s.split()) for s in sentences) / len(sentences)
+            checks["avg_sentence_len"] = round(avg_sent, 1)
+            criteria["C26_sentence_len"] = {"avg_words": round(avg_sent, 1), "count": len(sentences)}
+            if avg_sent < 4:
+                score -= 8; issues.append("Очень короткие предложения — телеграфный стиль фейков" if lang=="ru"
+                                           else "Very short sentences — fake-news telegram style")
+            elif 12 <= avg_sent <= 30:
+                score += 5; positives.append("Нормальная длина предложений" if lang=="ru"
+                                              else "Normal sentence length (journalistic style)")
+            elif avg_sent > 50:
+                score -= 5  # слишком длинные — плохая редактура
+
+        # ── КРИТЕРИЙ 27: Лексическое разнообразие (TTR) ──────────────────────
+        words_list = re.findall(r'\b[а-яёa-z]{4,}\b', full)
+        if len(words_list) >= 20:
+            ttr = len(set(words_list)) / len(words_list)
+            checks["lexical_diversity"] = round(ttr, 3)
+            criteria["C27_lexical_diversity"] = {"ttr": round(ttr, 3), "total_words": len(words_list)}
+            if ttr > 0.72:
+                score += 6; positives.append("Богатый словарный запас текста" if lang=="ru"
+                                               else "Rich vocabulary (high lexical diversity)")
+            elif ttr < 0.40:
+                score -= 7; issues.append("Бедный словарный запас — признак низкого качества" if lang=="ru"
+                                           else "Low lexical diversity — low-quality writing")
+
+        # ── КРИТЕРИЙ 28: Плотность существительных (информативность) ─────────
+        nouns_ru = len(re.findall(r'\b[а-яё]{5,}(ция|ния|ость|ство|тель|ник|щик)\b', full))
+        nouns_en = len(re.findall(r'\b[a-z]{4,}(tion|sion|ment|ness|ity|ance|ence)\b', full))
+        noun_density = nouns_ru + nouns_en
+        checks["noun_density"] = noun_density
+        criteria["C28_noun_density"] = {"count": noun_density}
+        if noun_density >= 8:
+            score += 5; positives.append("Информативный текст (высокая плотность существительных)" if lang=="ru"
+                                          else "Informative text (high noun density)")
+        elif noun_density <= 1 and wc > 50:
+            score -= 4
+
+        # ── КРИТЕРИЙ 29: Повторяющиеся фразы (пропаганда/спам) ───────────────
+        phrases_3w = re.findall(r'\b(\w+\s+\w+\s+\w+)\b', full)
+        if phrases_3w:
+            from collections import Counter
+            phrase_counts = Counter(phrases_3w)
+            max_repeat = phrase_counts.most_common(1)[0][1] if phrase_counts else 0
+            checks["max_phrase_repeat"] = max_repeat
+            criteria["C29_repetition"] = {"max_repeat": max_repeat}
+            if max_repeat >= 4:
+                score -= 12; issues.append("Навязчивые повторяющиеся фразы (пропаганда)" if lang=="ru"
+                                            else "Repetitive phrases (propaganda technique)")
+            elif max_repeat >= 3:
+                score -= 5
+
+        # ── КРИТЕРИЙ 30: Соотношение прилагательных к существительным ─────────
+        # Много оценочных прилагательных = манипуляция
+        adj_ru = len(re.findall(r'\b[а-яё]{4,}(ный|ной|ский|ской|овый|евый|альный)\b', full))
+        adj_en = len(re.findall(r'\b[a-z]{4,}(ous|ful|ive|ical|ary|ory|able|ible)\b', full))
+        total_adj = adj_ru + adj_en
+        checks["adjectives"] = total_adj
+        criteria["C30_adjective_density"] = {"count": total_adj}
+        if total_adj > 25 and wc < 200:
+            score -= 7; issues.append("Перегружен оценочными прилагательными" if lang=="ru"
+                                       else "Overloaded with evaluative adjectives")
+        elif 5 <= total_adj <= 20:
+            score += 3
+
+        # ── КРИТЕРИЙ 31: Глаголы активного действия (журналистика) ────────────
+        action_verbs = len(re.findall(
+            r'\b(сообщил|заявил|подтвердил|объявил|опроверг|рассказал|прокомментировал|'
+            r'said|stated|confirmed|announced|denied|reported|declared|claimed|acknowledged|'
+            r'sagte|erklärte|bestätigte|a déclaré|a confirmé|declaró|confirmó)\b',
+            full, re.I))
+        checks["action_verbs"] = action_verbs
+        criteria["C31_action_verbs"] = {"count": action_verbs}
+        if action_verbs >= 3:
+            score += 8; positives.append("Журналистские глаголы атрибуции (≥3)" if lang=="ru"
+                                          else "Journalistic attribution verbs (≥3)")
+        elif action_verbs >= 1:
+            score += 4
+
+        # ── КРИТЕРИЙ 32: Цифровые данные — проценты/статистика ────────────────
+        stats = len(re.findall(
+            r'\b\d+[.,]?\d*\s*(%|процент|percent|Prozent|pourcent|por\s+ciento)\b'
+            r'|\bна\s+\d+\s*%\b|\bby\s+\d+\s*%\b|\bum\s+\d+\s*%\b',
+            text, re.I))
+        checks["statistics"] = stats
+        criteria["C32_statistics"] = {"count": stats}
+        if stats >= 3:
+            score += 8; positives.append("Конкретная статистика (≥3 показателя)" if lang=="ru"
+                                          else "Concrete statistics (≥3 data points)")
+        elif stats >= 1:
+            score += 4
+
+        # ── КРИТЕРИЙ 33: Упоминание конкурирующих точек зрения ────────────────
+        counter_views = len(re.findall(
+            r'\b(однако|тем не менее|с другой стороны|критики|оппоненты|возражают|'
+            r'however|nevertheless|on the other hand|critics|opponents|objected|'
+            r'jedoch|andererseits|Kritiker|cependant|d.autre part|sin embargo|por otro lado)\b',
+            full, re.I))
+        checks["counter_views"] = counter_views
+        criteria["C33_balance"] = {"count": counter_views}
+        if counter_views >= 2:
+            score += 7; positives.append("Представлены альтернативные точки зрения" if lang=="ru"
+                                          else "Alternative viewpoints presented (balanced reporting)")
+        elif counter_views >= 1:
+            score += 3
+
+        # ── КРИТЕРИЙ 34: Юридические/официальные термины ──────────────────────
+        legal_terms = len(re.findall(
+            r'\b(закон|постановление|указ|договор|соглашение|протокол|резолюция|'
+            r'law|decree|regulation|agreement|treaty|protocol|resolution|legislation|'
+            r'Gesetz|Verordnung|Vertrag|loi|décret|règlement|ley|decreto|acuerdo)\b',
+            full, re.I))
+        checks["legal_terms"] = legal_terms
+        criteria["C34_legal"] = {"count": legal_terms}
+        if legal_terms >= 2:
+            score += 5; positives.append("Официальные/юридические термины" if lang=="ru"
+                                          else "Official/legal terminology present")
+
+        # ── КРИТЕРИЙ 35: Язык угрозы и страха ─────────────────────────────────
+        fear_lang = len(re.findall(
+            r'\b(угрожает|опасность|риск|угроза|смертельно|убьёт|уничтожит|катастрофически|'
+            r'threatens|dangerous|deadly|catastrophic|devastating|kill|destroy|collapse|'
+            r'bedroht|gefährlich|tödlich|katastrophal|menace|dangereux|mortel|catastrophique|'
+            r'amenaza|peligroso|mortal|catastrófico)\b',
+            full, re.I))
+        checks["fear_language"] = fear_lang
+        criteria["C35_fear"] = {"count": fear_lang}
+        if fear_lang >= 6:
+            score -= 14; issues.append("Язык страха и угроз (fear-mongering)" if lang=="ru"
+                                        else "Excessive fear/threat language")
+        elif fear_lang >= 3:
+            score -= 6
+
+        # ══════════════════════════════════════════════════════════════════════
+        # БЛОК C — АНАЛИЗ URL И СТРУКТУРЫ ПУБЛИКАЦИИ (критерии 36–45)
+        # ══════════════════════════════════════════════════════════════════════
+
+        # ── КРИТЕРИЙ 36: Числа в заголовке (кликбейт-листикл) ─────────────────
+        title_nums = re.findall(r'\b(\d+)\s+(причин|способ|факт|вещ|признак|шаг|'
+                                r'reasons|ways|facts|things|signs|steps|tips)\b', title, re.I)
+        checks["listicle"] = len(title_nums)
+        criteria["C36_listicle"] = {"found": len(title_nums)}
+        if len(title_nums) >= 1:
+            score -= 5; issues.append("Листикл-заголовок (кликбейт-формат)" if lang=="ru"
+                                       else "Listicle headline (clickbait format)")
+
+        # ── КРИТЕРИЙ 37: Заглавие начинается с вопроса «Почему...» ───────────
+        why_headline = bool(re.match(
+            r'^(почему|зачем|как так|неужели|разве|can\s+you\s+believe|why\s+is|'
+            r'warum\s+ist|pourquoi|¿por\s+qué)', title.lower()))
+        checks["why_headline"] = why_headline
+        criteria["C37_why_headline"] = {"found": why_headline}
+        if why_headline:
+            score -= 6; issues.append("Заголовок-вопрос без ответа в тексте" if lang=="ru"
+                                       else "Unanswered question headline (Betteridge)")
+
+        # ── КРИТЕРИЙ 38: Email/контакты редакции в тексте ─────────────────────
+        has_contact = bool(re.search(
+            r'(редакция|contacts|kontakt|contact|редактор|editor)\s*[:@]?\s*\w+@\w+\.\w+'
+            r'|\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b', full, re.I))
+        checks["has_contact"] = has_contact
+        criteria["C38_contact"] = {"found": has_contact}
+        if has_contact:
+            score += 5; positives.append("Контакты редакции указаны" if lang=="ru"
+                                          else "Editorial contact info present")
+
+        # ── КРИТЕРИЙ 39: Специфические места (топонимы) ───────────────────────
+        locations = len(re.findall(
+            r'\b(Москва|Лондон|Вашингтон|Пекин|Берлин|Париж|Нью-Йорк|Токио|Брюссель|Женева|'
+            r'Moscow|London|Washington|Beijing|Berlin|Paris|New York|Tokyo|Brussels|Geneva|'
+            r'Astana|Bishkek|Tashkent|Baku|Yerevan|Tbilisi|Minsk|Kyiv|'
+            r'Алматы|Бишкек|Ташкент|Баку|Ереван|Тбилиси|Минск|Киев|Нур-Султан)\b',
+            full_orig, re.I))
+        checks["locations"] = locations
+        criteria["C39_locations"] = {"count": locations}
+        if locations >= 2:
+            score += 5; positives.append("Конкретные географические места" if lang=="ru"
+                                          else "Specific geographic locations cited")
+        elif locations >= 1:
+            score += 2
+
+        # ── КРИТЕРИЙ 40: Упоминание организаций (ООН, НАТО, ВОЗ и т.д.) ───────
+        orgs = len(re.findall(
+            r'\b(ООН|НАТО|ВОЗ|МВФ|ЕС|ОБСЕ|ВТО|МУС|ЮНИСЕФ|МАГАТЭ|'
+            r'UN|NATO|WHO|IMF|EU|OSCE|WTO|ICC|UNICEF|IAEA|G7|G20|'
+            r'UEFA|FIFA|IOC|Interpol|Europol)\b',
+            full_orig))
+        checks["organizations"] = orgs
+        criteria["C40_organizations"] = {"count": orgs}
+        if orgs >= 2:
+            score += 6; positives.append("Упоминание международных организаций" if lang=="ru"
+                                          else "International organizations referenced")
+        elif orgs >= 1:
+            score += 3
+
+        # ── КРИТЕРИЙ 41: Длина заголовка (оптимум 6–12 слов) ─────────────────
+        title_words_count = len(title.split())
+        checks["title_length"] = title_words_count
+        criteria["C41_title_length"] = {"words": title_words_count}
+        if title_words_count > 20:
+            score -= 5; issues.append("Слишком длинный заголовок" if lang=="ru"
+                                       else "Excessively long headline")
+        elif title_words_count < 3:
+            score -= 8; issues.append("Слишком короткий заголовок" if lang=="ru"
+                                       else "Excessively short headline")
+        elif 6 <= title_words_count <= 14:
+            score += 3
+
+        # ── КРИТЕРИЙ 42: Смешение языков (подозрительно в локальных СМИ) ──────
+        ru_words = len(re.findall(r'[а-яё]{4,}', full))
+        en_words = len(re.findall(r'[a-z]{4,}', full))
+        if wc > 30:
+            if ru_words > 0 and en_words > 0:
+                mix_ratio = min(ru_words, en_words) / max(ru_words, en_words)
+                checks["language_mix"] = round(mix_ratio, 2)
+                criteria["C42_language_mix"] = {"ru": ru_words, "en": en_words, "ratio": round(mix_ratio, 2)}
+                # Умеренное смешение норм; сильное — подозрительно для коротких текстов
+                if mix_ratio > 0.4 and wc < 100:
+                    score -= 4
+
+        # ── КРИТЕРИЙ 43: Скобки в заголовке (пояснения = профессионализм) ─────
+        brackets = len(re.findall(r'\([^)]{3,30}\)', title))
+        checks["title_brackets"] = brackets
+        criteria["C43_brackets"] = {"count": brackets}
+        if brackets >= 1:
+            score += 3; positives.append("Пояснения в скобках в заголовке" if lang=="ru"
+                                          else "Clarifying parentheses in headline")
+
+        # ── КРИТЕРИЙ 44: Паттерны дезинформации в структуре текста ──────────
+        disinfo_structures = sum(1 for p in [
+            r'(учёные|врачи|эксперты)\s+(доказали|выяснили|обнаружили)\s+что\s+\w+\s+(опасн|вред|убива)',
+            r'(scientists|doctors|experts)\s+(proved|found|discovered)\s+that\s+\w+\s+(dangerous|harmful|kill)',
+            r'(официальные\s+лица|власти)\s+(признали|подтвердили)\s+(провал|ошибку|обман)',
+            r'(officials|authorities)\s+(admitted|confirmed)\s+(failure|mistake|deception)',
+            r'(сенсационное|шокирующее|невероятное)\s+(открытие|разоблачение|признание)',
+            r'(sensational|shocking|incredible)\s+(discovery|revelation|admission)',
+        ] if re.search(p, full, re.I))
+        checks["disinfo_structures"] = disinfo_structures
+        criteria["C44_disinfo_struct"] = {"count": disinfo_structures}
+        if disinfo_structures >= 2:
+            score -= 18; issues.append("Типичная структура дезинформации" if lang=="ru"
+                                        else "Classic disinformation narrative structure")
+        elif disinfo_structures == 1:
+            score -= 9
+
+        # ── КРИТЕРИЙ 45: Позитивные индикаторы журналистики ──────────────────
+        journalism_markers = sum(1 for p in [
+            r'(пресс-конференц|пресс-релиз|официальное заявление)',
+            r'(press conference|press release|official statement|briefing)',
+            r'(Pressekonferenz|Pressemitteilung|offizielle Erklärung)',
+            r'(conférence de presse|communiqué de presse|déclaration officielle)',
+            r'(rueda de prensa|comunicado de prensa|declaración oficial)',
+        ] if re.search(p, full, re.I))
+        checks["journalism_markers"] = journalism_markers
+        criteria["C45_journalism"] = {"count": journalism_markers}
+        if journalism_markers >= 2:
+            score += 8; positives.append("Профессиональные журналистские маркеры" if lang=="ru"
+                                          else "Professional journalism markers (press conf./releases)")
+        elif journalism_markers >= 1:
+            score += 4
+
+        # ══════════════════════════════════════════════════════════════════════
+        # БЛОК D — КОНТЕКСТНЫЙ АНАЛИЗ (критерии 46–55)
+        # ══════════════════════════════════════════════════════════════════════
+
+        # ── КРИТЕРИЙ 46: Апелляция к авторитету без имени ────────────────────
+        false_authority = len(re.findall(
+            r'\b(многие эксперты|ряд учёных|некоторые специалисты|'
+            r'many experts|some scientists|certain specialists|'
+            r'viele Experten|einige Wissenschaftler|'
+            r'de nombreux experts|certains spécialistes|'
+            r'muchos expertos|algunos científicos)\b', full, re.I))
+        checks["false_authority"] = false_authority
+        criteria["C46_false_authority"] = {"count": false_authority}
+        if false_authority >= 3:
+            score -= 12; issues.append("Апелляция к безымянным авторитетам (≥3)" if lang=="ru"
+                                        else "Appeal to unnamed authorities (≥3)")
+        elif false_authority >= 1:
+            score -= 5
+
+        # ── КРИТЕРИЙ 47: Условные конструкции (могло бы быть) ────────────────
+        conditionals = len(re.findall(
+            r'\b(мог бы|могло бы|если бы|возможно что|вероятно что|'
+            r'could have|might have|if it were|possibly|allegedly|'
+            r'könnte|hätte|wenn es wäre|möglicherweise|'
+            r'pourrait|aurait pu|si c.était|possiblement|'
+            r'podría|habría|si fuera|posiblemente)\b', full, re.I))
+        checks["conditionals"] = conditionals
+        criteria["C47_conditionals"] = {"count": conditionals}
+        if conditionals >= 4:
+            score -= 8; issues.append("Много домыслов и условных утверждений" if lang=="ru"
+                                       else "Many speculative/conditional statements")
+
+        # ── КРИТЕРИЙ 48: Ссылки на «засекреченные документы» ─────────────────
+        secret_docs = len(re.findall(
+            r'\b(секретный документ|рассекреченные файлы|утечка документов|'
+            r'secret document|leaked files|classified document|whistleblower|'
+            r'geheimes Dokument|durchgesickerte Dateien|'
+            r'document secret|fichiers divulgués|'
+            r'documento secreto|archivos filtrados)\b', full, re.I))
+        checks["secret_docs"] = secret_docs
+        criteria["C48_secret_docs"] = {"count": secret_docs}
+        if secret_docs >= 2:
+            score -= 14; issues.append("Ссылки на «секретные документы»" if lang=="ru"
+                                        else "References to 'secret/leaked documents'")
+        elif secret_docs == 1:
+            score -= 6
+
+        # ── КРИТЕРИЙ 49: Упоминание конкретных законов/решений ───────────────
+        law_refs = len(re.findall(
+            r'\b(Федеральный закон|Постановление №|Указ Президента|'
+            r'Federal Law|Executive Order|Act No\.|Resolution No\.|'
+            r'Bundesgesetz|Verordnung Nr\.|'
+            r'Loi fédérale|Ordonnance n°|'
+            r'Ley Federal|Decreto No\.)\b', full_orig, re.I))
+        checks["law_refs"] = law_refs
+        criteria["C49_law_refs"] = {"count": law_refs}
+        if law_refs >= 1:
+            score += 7; positives.append("Ссылки на конкретные законы/постановления" if lang=="ru"
+                                          else "References to specific laws/regulations")
+
+        # ── КРИТЕРИЙ 50: Нарративные клише фейков ────────────────────────────
+        fake_narratives = sum(1 for p in [
+            r'(мировая элита|мировое правительство|новый мировой порядок)',
+            r'(world elite|world government|new world order|global reset)',
+            r'(Weltelite|Weltregierung|Neue Weltordnung)',
+            r'(élite mondiale|gouvernement mondial|nouvel ordre mondial)',
+            r'(élite global|gobierno mundial|nuevo orden mundial)',
+            r'(план(демия|дерни)|план по уничтожению|геноцид населения)',
+            r'(plandemic|plan to destroy|genocide of population)',
+            r'(Pharmaindustrie\s+verbirgt|Big\s+Pharma\s+hides|фармацевтическое\s+лобби\s+скрывает)',
+            r'(5G\s+(убивает|контролирует|заражает)|5G\s+(kills|controls|spreads))',
+            r'(вакцин(а|ы)\s+(чипирует|убивает|содержит\s+яд)|vaccine\s+(microchip|kills|poison))',
+        ] if re.search(p, full, re.I))
+        checks["fake_narratives"] = fake_narratives
+        criteria["C50_fake_narratives"] = {"count": fake_narratives}
+        if fake_narratives >= 2:
+            score -= 30; issues.append("Известные нарративы дезинформации (≥2)" if lang=="ru"
+                                        else "Known disinformation narratives (≥2)")
+        elif fake_narratives == 1:
+            score -= 15; issues.append("Известный нарратив дезинформации" if lang=="ru"
+                                        else "Known disinformation narrative detected")
+
+        # ── КРИТЕРИЙ 51: Исторические параллели (манипуляция) ────────────────
+        hist_parallels = len(re.findall(
+            r'\b(как при Гитлере|как в нацистской|напоминает 1984|как в СССР|'
+            r'like Hitler|like the Nazis|reminds of 1984|like the USSR|just like Nazi|'
+            r'wie unter Hitler|wie in der Nazi|erinnert an 1984)\b', full, re.I))
+        checks["hist_parallels"] = hist_parallels
+        criteria["C51_godwin"] = {"count": hist_parallels}
+        if hist_parallels >= 1:
+            score -= 10; issues.append("Манипулятивные исторические параллели (Закон Годвина)" if lang=="ru"
+                                        else "Manipulative historical parallels (Godwin's Law)")
+
+        # ── КРИТЕРИЙ 52: Научные ссылки (DOI, журналы) ───────────────────────
+        science_refs = len(re.findall(
+            r'\b(doi:|arxiv\.|pubmed|nature\.|science\.|lancet\.|nejm\.|bmj\.|'
+            r'peer.reviewed|рецензируемое\s+исследование|научный\s+журнал|'
+            r'fachwissenschaftlich|revue\s+scientifique|revista\s+científica)\b',
+            full, re.I))
+        checks["science_refs"] = science_refs
+        criteria["C52_science"] = {"count": science_refs}
+        if science_refs >= 1:
+            score += 10; positives.append("Ссылки на научные работы/журналы" if lang=="ru"
+                                           else "References to scientific papers/journals")
+
+        # ── КРИТЕРИЙ 53: Медиаграмотность — призыв проверять ─────────────────
+        verify_calls = len(re.findall(
+            r'\b(проверьте|убедитесь|по данным|в соответствии с|'
+            r'check|verify|according to|as reported by|'
+            r'überprüfen|gemäß|laut|'
+            r'vérifiez|selon|d.après|'
+            r'verifique|según|de acuerdo con)\b', full, re.I))
+        checks["verify_calls"] = verify_calls
+        criteria["C53_verify"] = {"count": verify_calls}
+        if verify_calls >= 3:
+            score += 5; positives.append("Журналистские ссылки на проверку данных" if lang=="ru"
+                                          else "Journalistic data verification references")
+
+        # ── КРИТЕРИЙ 54: Финансовая / экономическая конкретика ───────────────
+        financial = len(re.findall(
+            r'\b(\$\s*\d+|\€\s*\d+|₽\s*\d+|тг\s*\d+|\d+\s*(млрд|млн|трлн|billion|trillion|million)'
+            r'|\bВВП\b|\bGDP\b|\bбюджет\b|\bbudget\b|\bинвестиции\b|\binvestment\b)\b',
+            text, re.I))
+        checks["financial"] = financial
+        criteria["C54_financial"] = {"count": financial}
+        if financial >= 3:
+            score += 6; positives.append("Конкретные финансовые данные" if lang=="ru"
+                                          else "Concrete financial/economic data")
+        elif financial >= 1:
+            score += 3
+
+        # ── КРИТЕРИЙ 55: Медицинская/техническая терминология ────────────────
+        technical = len(re.findall(
+            r'\b(мРНК|антитела|иммунитет|вирус|вакцин|штамм|геном|ДНК|РНК|'
+            r'mRNA|antibodies|immunity|virus|vaccine|strain|genome|DNA|RNA|'
+            r'протокол|алгоритм|протокол|байт|мегабайт|терабайт|'
+            r'protocol|algorithm|byte|megabyte|terabyte)\b', full, re.I))
+        checks["technical"] = technical
+        criteria["C55_technical"] = {"count": technical}
+        if technical >= 4:
+            score += 5; positives.append("Профессиональная терминология" if lang=="ru"
+                                          else "Professional/technical terminology")
+
+        # ══════════════════════════════════════════════════════════════════════
+        # БЛОК E — ПОВЕДЕНЧЕСКИЕ ПАТТЕРНЫ И МЕТАДАННЫЕ (критерии 56–60)
+        # ══════════════════════════════════════════════════════════════════════
+
+        # ── КРИТЕРИЙ 56: Дата публикации в тексте ────────────────────────────
+        pub_dates = len(re.findall(
+            r'\b\d{1,2}[./]\d{1,2}[./]\d{2,4}\b'
+            r'|\b\d{4}-\d{2}-\d{2}\b'
+            r'|\b\d{1,2}\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\s+\d{4}\b'
+            r'|\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}\b',
+            text, re.I))
+        checks["pub_dates"] = pub_dates
+        criteria["C56_dates"] = {"count": pub_dates}
+        if pub_dates >= 1:
+            score += 5; positives.append("Конкретные даты в тексте" if lang=="ru"
+                                          else "Specific publication dates present")
+
+        # ── КРИТЕРИЙ 57: Эффект срочности + социальное давление ──────────────
+        social_pressure = len(re.findall(
+            r'\b(все уже знают|весь мир обсуждает|миллионы людей|вирусный пост|'
+            r'everyone already knows|the whole world is discussing|millions of people|viral post|'
+            r'alle wissen bereits|die ganze Welt diskutiert|Millionen Menschen|'
+            r'tout le monde sait déjà|le monde entier en parle|des millions de personnes|'
+            r'todo el mundo ya sabe|el mundo entero habla|millones de personas)\b', full, re.I))
+        checks["social_pressure"] = social_pressure
+        criteria["C57_social_pressure"] = {"count": social_pressure}
+        if social_pressure >= 2:
+            score -= 14; issues.append("Социальное давление ('все уже знают')" if lang=="ru"
+                                        else "Social pressure tactics ('everyone knows')")
+        elif social_pressure >= 1:
+            score -= 6
+
+        # ── КРИТЕРИЙ 58: Нарратив «скрытого знания» ──────────────────────────
+        hidden_knowledge = len(re.findall(
+            r'\b(то, что скрывают|правда которую|что не хотят чтобы ты знал|'
+            r'what they.re hiding|the truth they don.t want you to know|'
+            r'was sie verbergen|die Wahrheit die sie|'
+            r'ce qu.ils cachent|la vérité qu.ils|'
+            r'lo que ocultan|la verdad que no quieren)\b', full, re.I))
+        checks["hidden_knowledge"] = hidden_knowledge
+        criteria["C58_hidden_knowledge"] = {"count": hidden_knowledge}
+        if hidden_knowledge >= 1:
+            score -= 18; issues.append("Нарратив 'скрытого знания' — классика фейков" if lang=="ru"
+                                        else "Hidden knowledge narrative — classic fake-news pattern")
+
+        # ── КРИТЕРИЙ 59: Академические индикаторы ────────────────────────────
+        academic = len(re.findall(
+            r'\b(исследование показало|согласно исследованию|по данным исследования|'
+            r'study shows|research indicates|according to the study|survey found|'
+            r'Studie zeigt|Forschung zeigt|gemäß der Studie|'
+            r'l.étude montre|selon l.étude|la recherche indique|'
+            r'el estudio muestra|según el estudio|la investigación indica)\b', full, re.I))
+        checks["academic"] = academic
+        criteria["C59_academic"] = {"count": academic}
+        if academic >= 2:
+            score += 8; positives.append("Ссылки на исследования/данные" if lang=="ru"
+                                          else "Research/study references")
+        elif academic >= 1:
+            score += 4
+
+        # ── КРИТЕРИЙ 60: Итоговый бонус за общую качественность ──────────────
+        quality_signals = sum([
+            named >= 2,           # есть конкретные люди
+            qt >= 2,              # есть цитаты
+            wc >= 200,            # длинный текст
+            fh >= 3,              # есть ссылки на источники
+            action_verbs >= 2,    # журналистские глаголы
+            pub_dates >= 1,       # даты
+            paragraphs >= 3,      # структура
+            stats >= 1,           # статистика
+        ])
+        criteria["C60_quality_bonus"] = {"signals": quality_signals}
+        if quality_signals >= 6:
+            score += 12; positives.append("Высокое качество текста (6+ признаков)" if lang=="ru"
+                                           else "High text quality (6+ professional signals)")
+        elif quality_signals >= 4:
+            score += 6
+        elif quality_signals >= 2:
+            score += 2
+
+        # Штраф за накопленные красные флаги
+        red_count = len(issues)
+        if red_count >= 8:
+            score -= 10  # дополнительный штраф за множество нарушений
+        elif red_count >= 5:
+            score -= 5
+
+        # ── Финальный балл ────────────────────────────────────────────────────
         score = max(0, min(100, score))
-        return {"score": score, "verdict": self._v(score, lang),
-                "issues": issues, "positives": positives, "checks": checks}
+        return {
+            "score": score,
+            "verdict": self._v(score, lang),
+            "issues": issues,
+            "positives": positives,
+            "checks": checks,
+            "criteria_detail": criteria,
+            "criteria_count": 60,
+            "red_flags_count": len(issues),
+            "green_signals_count": len(positives),
+        }
 
     def _v(self, s: int, lang: str) -> str:
-        if s >= 75: return tr(lang, "text_quality")
-        if s >= 55: return tr(lang, "minor_manipulation")
+        if s >= 78: return tr(lang, "text_quality")
+        if s >= 58: return tr(lang, "minor_manipulation")
         if s >= 35: return tr(lang, "many_manipulation")
         return tr(lang, "likely_disinfo")
 
@@ -1159,54 +1945,144 @@ class CrossRefAnalyzer:
         except Exception:
             return None
 
+
+    def _groq_crossref(self, title: str, text: str, lang: str) -> dict | None:
+        """Groq AI проверяет известны ли ему подтверждения этой новости в реальных СМИ."""
+        cache_key = f"crossref:{hashlib.md5(title[:80].encode()).hexdigest()}:{lang}"
+        if cache_key in _groq_source_cache:
+            return _groq_source_cache[cache_key]
+
+        if lang == "en":
+            sys_prompt = (
+                "You are a fact-checker with knowledge of global news up to early 2025. "
+                "Given a news headline and text, determine if this story was covered by major credible outlets. "
+                "Respond ONLY with JSON, no markdown.\n"
+                '{"score":<0-100>,"trusted_count":<int>,"suspicious_count":<int>,"total_found":<int>,' +
+                '"verdict":"<short verdict>","explanation":"<1-2 sentences in English>",' +
+                '"sources":[{"title":"<headline>","source":"<outlet name>","url":"<url if known else empty>","trusted":true/false}],' +
+                '"covered_by":["<outlet1>","<outlet2>"],"not_covered":true/false}'
+            )
+            user_prompt = (
+                f'News title: "{title}"\n'
+                f'News text: "{text[:400]}"\n'
+                "Was this story or closely related events covered by major credible news outlets "
+                "(Reuters, AP, BBC, NYT, Guardian, etc.)? "
+                "List any outlets that covered similar/same story. "
+                "If no credible outlet covered it, set not_covered=true and score low. "
+                "Return ONLY the JSON."
+            )
+        else:
+            sys_prompt = (
+                "Ты фактчекер со знанием мировых новостей до начала 2025 года. "
+                "По заголовку и тексту новости определи, публиковали ли её крупные авторитетные издания. "
+                "Отвечай ТОЛЬКО JSON, без markdown.\n"
+                '{"score":<0-100>,"trusted_count":<int>,"suspicious_count":<int>,"total_found":<int>,' +
+                '"verdict":"<краткий вердикт на русском>","explanation":"<1-2 предложения на русском>",' +
+                '"sources":[{"title":"<заголовок>","source":"<название издания>","url":"<url если известен иначе пусто>","trusted":true/false}],' +
+                '"covered_by":["<издание1>","<издание2>"],"not_covered":true/false}'
+            )
+            user_prompt = (
+                f'Заголовок новости: "{title}"\n'
+                f'Текст новости: "{text[:400]}"\n'
+                "Публиковали ли эту новость или связанные события крупные авторитетные издания "
+                "(Reuters, AP, BBC, РБК, ТАСС, Guardian и т.д.)? "
+                "Перечисли издания которые писали про это. "
+                "Если авторитетные издания не писали — поставь not_covered=true и низкий score. "
+                "Верни ТОЛЬКО JSON."
+            )
+
+        raw = _groq_request([
+            {"role": "system", "content": sys_prompt},
+            {"role": "user",   "content": user_prompt},
+        ], max_tokens=500)
+
+        result = _parse_groq_json(raw)
+        if not result:
+            return None
+
+        result["score"]           = max(0, min(95, int(result.get("score", 50))))
+        result["trusted_count"]   = int(result.get("trusted_count", 0))
+        result["suspicious_count"]= int(result.get("suspicious_count", 0))
+        result["total_found"]     = int(result.get("total_found", 0))
+        if not isinstance(result.get("sources"), list):
+            result["sources"] = []
+        # Марим источники как trusted
+        for s in result["sources"]:
+            dom = re.sub(r'^https?://(www\.)?', '', s.get("url","")).split('/')[0].lower()
+            s["trusted"] = s.get("trusted", False) or any(
+                dom == t2 or dom.endswith('.' + t2) for t2 in TRUSTED_SOURCES)
+
+        _groq_source_cache[cache_key] = result
+        return result
+
     def analyze(self, title: str, text: str, lang: str = "ru") -> dict:
         query = self._keywords(title, text) or title[:60]
-        rss  = self.searcher.search(query)
-        ddg  = self.searcher.search_duckduckgo(query)
+
+        # ── 1. Groq AI cross-reference (если доступен) ────────────────────────
+        groq_crossref = None
+        if GROQ_API_KEY:
+            groq_crossref = self._groq_crossref(title, text, lang)
+
+        # ── 2. Wikipedia (быстро и надёжно) ──────────────────────────────────
         wiki = self._wiki(query, lang)
         if not wiki and lang != "en":
             wiki = self._wiki(query, "en")
 
-        all_src, seen = [], set()
-        for art in rss + ddg:
-            u = art.get("url", "")
-            if u and u not in seen:
-                seen.add(u)
-                dom = re.sub(r'^https?://(www\.)?', '', u).split('/')[0].lower()
-                art["trusted"]    = any(dom == t2 or dom.endswith('.' + t2) for t2 in TRUSTED_SOURCES)
-                art["suspicious"] = any(dom == s or dom.endswith('.' + s) for s in SUSPICIOUS_SOURCES)
-                all_src.append(art)
+        # ── 3. RSS поиск — только если Groq недоступен ────────────────────────
+        all_src = []
+        if not groq_crossref:
+            rss = self.searcher.search(query)
+            ddg = self.searcher.search_duckduckgo(query)
+            seen = set()
+            for art in rss + ddg:
+                u = art.get("url", "")
+                if u and u not in seen:
+                    seen.add(u)
+                    dom = re.sub(r'^https?://(www\.)?', '', u).split('/')[0].lower()
+                    art["trusted"]    = any(dom == t2 or dom.endswith('.' + t2) for t2 in TRUSTED_SOURCES)
+                    art["suspicious"] = any(dom == s or dom.endswith('.' + s) for s in SUSPICIOUS_SOURCES)
+                    # Показываем только надёжные или подозрительные — не мусор
+                    if art["trusted"] or art["suspicious"]:
+                        all_src.append(art)
 
-        tc = sum(1 for s in all_src if s.get("trusted"))
-        sc = sum(1 for s in all_src if s.get("suspicious"))
-        total = len(all_src)
-
-        if total == 0 and not wiki:
-            score, verdict = 28, tr(lang, "no_confirmations")
-            explanation = tr(lang, "no_other_sources")
-        elif tc >= 4:
-            score, verdict = 92, tr(lang, "confirmed_by", n=tc)
-            explanation = tr(lang, "confirmed_many", n=tc)
-        elif tc >= 2:
-            score, verdict = 75, tr(lang, "confirmed_by", n=tc)
-            explanation = tr(lang, "confirmed_several")
-        elif tc == 1:
-            score, verdict = 60, tr(lang, "one_reliable")
-            explanation = tr(lang, "one_source_covers")
-        elif sc > 0 and tc == 0:
-            score, verdict = 18, tr(lang, "only_suspicious")
-            explanation = tr(lang, "only_unreliable")
-        elif total >= 3:
-            score, verdict = 50, tr(lang, "sources_found", n=total)
-            explanation = tr(lang, "topic_exists")
+        # ── 4. Считаем результат ──────────────────────────────────────────────
+        if groq_crossref:
+            # Groq дал оценку — используем её
+            tc    = groq_crossref.get("trusted_count", 0)
+            sc    = groq_crossref.get("suspicious_count", 0)
+            total = groq_crossref.get("total_found", 0)
+            score = groq_crossref.get("score", 50)
+            verdict     = groq_crossref.get("verdict", tr(lang, "few_confirmations"))
+            explanation = groq_crossref.get("explanation", "")
+            all_src     = groq_crossref.get("sources", [])
         else:
-            score, verdict = 38, tr(lang, "few_confirmations")
-            explanation = tr(lang, "very_few_sources")
+            tc    = sum(1 for s in all_src if s.get("trusted"))
+            sc    = sum(1 for s in all_src if s.get("suspicious"))
+            total = len(all_src)
+            if total == 0 and not wiki:
+                score, verdict = 45, tr(lang, "few_confirmations")
+                explanation = "Поиск в реальном времени недоступен." if lang=="ru" else "Real-time search unavailable."
+            elif tc >= 4:
+                score, verdict = 92, tr(lang, "confirmed_by", n=tc)
+                explanation = tr(lang, "confirmed_many", n=tc)
+            elif tc >= 2:
+                score, verdict = 75, tr(lang, "confirmed_by", n=tc)
+                explanation = tr(lang, "confirmed_several")
+            elif tc == 1:
+                score, verdict = 60, tr(lang, "one_reliable")
+                explanation = tr(lang, "one_source_covers")
+            elif sc > 0 and tc == 0:
+                score, verdict = 18, tr(lang, "only_suspicious")
+                explanation = tr(lang, "only_unreliable")
+            else:
+                score, verdict = 45, tr(lang, "few_confirmations")
+                explanation = "Недостаточно данных для перекрёстной проверки." if lang=="ru" else "Insufficient data for cross-reference."
 
         if wiki: score = min(95, score + 7)
         return {"score": score, "verdict": verdict, "explanation": explanation,
                 "sources": all_src[:10], "trusted_count": tc, "suspicious_count": sc,
-                "total_found": total, "wiki": wiki, "query_used": query}
+                "total_found": total, "wiki": wiki, "query_used": query,
+                "groq_used": groq_crossref is not None}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1576,7 +2452,7 @@ class FakeNewsDetector:
 
         # Groq deep analysis (если ключ задан)
         groq_r = None
-        if GROQ_API_KEY and GROQ_API_KEY != "YOUR_GROQ_API_KEY_HERE":
+        if GROQ_API_KEY:
             groq_r = groq_deep_analyze(title, text, source_r, crossref_r, bert_r, lang)
 
         deep_r = self.deep_analyzer.analyze(
