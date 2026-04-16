@@ -234,21 +234,21 @@ textarea{min-height:100px}
   <div class="brand"><div class="brand-dot">🔍</div>FakeScope<span style="font-weight:300;color:var(--muted);font-size:12px;margin-left:4px">v3</span></div>
   <div style="display:flex;align-items:center;gap:20px">
     <div class="lang-selector">
-      <span style="font-size:11px;color:var(--muted);text-transform:uppercase;font-family:var(--mono);letter-spacing:.06em">🌍 Язык:</span>
+      <span style="font-size:11px;color:var(--muted);text-transform:uppercase;font-family:var(--mono);letter-spacing:.06em" id="langLabel">🌍 Язык:</span>
       <select id="langSelect" class="lang-select" onchange="changeLang(this.value)">
-        <option value="ru">Русский (RU)</option>
-        <option value="en">English (EN)</option>
-        <option value="de">Deutsch (DE)</option>
-        <option value="fr">Français (FR)</option>
-        <option value="es">Español (ES)</option>
-        <option value="zh">中文 (ZH)</option>
+        <option value="ru" data-label="lang_ru">Русский (RU)</option>
+        <option value="en" data-label="lang_en">English (EN)</option>
+        <option value="de" data-label="lang_de">Deutsch (DE)</option>
+        <option value="fr" data-label="lang_fr">Français (FR)</option>
+        <option value="es" data-label="lang_es">Español (ES)</option>
+        <option value="zh" data-label="lang_zh">中文 (ZH)</option>
       </select>
     </div>
     <div class="nav-tags">
       <span class="ntag on">Chain-of-Thought</span>
       <span class="ntag on">RSS</span>
-      <span class="ntag on">Wikipedia</span>
-      <span class="ntag">Без API ключей</span>
+      <span class="ntag on" id="tag-wiki">Wikipedia</span>
+      <span class="ntag" id="tag-no-keys">Без API ключей</span>
     </div>
   </div>
 </nav>
@@ -341,14 +341,148 @@ textarea{min-height:100px}
 <script>
 // ── LANGUAGE MANAGEMENT ───────────────────────────────
 let currentLang='ru';
+let translations={};
+
+async function loadTranslations(){
+  try{
+    const res=await fetch('/translations.json');
+    translations=await res.json();
+  }catch(e){
+    console.error('Failed to load translations',e);
+    translations={};
+  }
+}
+
+function t(key,lang){
+  lang=lang||currentLang;
+  const data=translations[key];
+  if(!data) return key;
+  return data[lang]||data['en']||key;
+}
 
 function changeLang(lang){
   currentLang=lang;
   localStorage.setItem('fakescope_lang',lang);
   document.documentElement.lang=lang;
+  updateAllUI();
   loadTrending();
+}
+
+function updateAllUI(){
+  // Nav lang label
+  document.getElementById('langLabel').textContent=t('nav_lang_label');
+  
+  // Update language options
+  document.querySelectorAll('#langSelect option').forEach(opt=>{
+    const key=opt.getAttribute('data-label');
+    if(key) opt.textContent=t(key);
+  });
+  
+  // Nav tags
+  document.getElementById('tag-wiki').textContent=t('nav_tags_wiki');
+  document.getElementById('tag-no-keys').textContent=t('nav_tags_no_keys');
+  
+  // Hero
+  const h1=document.querySelector('.hero h1');
+  if(h1) h1.textContent=t('hero_title');
+  
+  const hp=document.querySelector('.hero p');
+  if(hp) hp.textContent=t('hero_subtitle');
+  
+  // Chips
+  const chips=document.querySelectorAll('.chips .chip');
+  const chipTexts=[t('chip_cot'),t('chip_rss'),t('chip_wiki'),t('chip_cross'),t('chip_no_keys')];
+  chips.forEach((c,i)=>{if(i<chipTexts.length)c.textContent=chipTexts[i]});
+  
+  // Trending section header
+  let trendingHeader=document.querySelector('.sec');
+  if(trendingHeader){
+    trendingHeader.querySelectorAll('.sec-title, .sec-sub').forEach((el,i)=>{
+      if(i===0) el.textContent=t('trending_title');
+      if(i===1) el.textContent=t('trending_subtitle');
+    });
+  }
+  
+  // Form labels
+  const fbox=document.querySelector('.fbox');
+  if(fbox){
+    const labels=fbox.querySelectorAll('.lbl');
+    const lblData=[
+      {key:'form_title',reqKey:'form_required'},
+      {key:'form_text',reqKey:'form_recommended'},
+      {key:'form_url',reqKey:'form_required'}
+    ];
+    labels.forEach((lbl,i)=>{
+      if(lblData[i]){
+        const req=lbl.querySelector('.req')||lbl.querySelector('.opt');
+        if(req){
+          const reqText=t(lblData[i].reqKey);
+          lbl.innerHTML=t(lblData[i].key)+' <span class="'+(lblData[i].reqKey==='form_required'?'req':'opt')+'">'+reqText+'</span>';
+        }else{
+          lbl.textContent=t(lblData[i].key);
+        }
+      }
+    });
+  }
+  
+  // Form placeholders
+  const inputs=[
+    {id:'fTitle',key:'form_title_placeholder'},
+    {id:'fText',key:'form_text_placeholder'},
+    {id:'fUrl',key:'form_url_placeholder'}
+  ];
+  inputs.forEach(inp=>{
+    const el=document.getElementById(inp.id);
+    if(el) el.placeholder=t(inp.key);
+  });
+  
+  // URL hint
+  const urlHint=document.getElementById('urlHint');
+  if(urlHint) urlHint.textContent=t('form_url_hint');
+  
+  // Button
   const btn=document.getElementById('runBtn');
-  if(btn) btn.textContent=''; // Переугадим текст при смене языка
+  if(btn&&!btn.classList.contains('go')){
+    btn.querySelector('.bt').textContent=t('btn_analyze');
+    btn.querySelector('.bs').innerHTML=`<div class="sring"></div><span style="font-size:13px">${t('btn_analyzing')}</span>`;
+  }
+  
+  // Examples
+  const exl=document.querySelector('.exl');
+  if(exl) exl.textContent=t('examples_label');
+  const exbs=document.querySelectorAll('.exb');
+  const exTexts=[t('example_fake'),t('example_real'),t('example_conspiracy')];
+  exbs.forEach((ex,i)=>{if(i<exTexts.length)ex.textContent=exTexts[i]});
+  
+  // Progress & Thinking boxes
+  const progTitle=document.querySelector('#progBox .prog-title');
+  if(progTitle) progTitle.textContent=t('progress_title');
+  
+  const thinkTitle=document.querySelector('#thinkBox .think-title');
+  if(thinkTitle) thinkTitle.textContent=t('thinking_title');
+  
+  // How section
+  const howSection=document.querySelector('.how');
+  if(howSection){
+    const parent=howSection.previousElementSibling;
+    if(parent) parent.querySelector('.sec-title').textContent=t('how_title');
+    
+    const howCards=document.querySelectorAll('.howcard');
+    const howData=[
+      {title:'how_source',desc:'how_source_desc'},
+      {title:'how_text',desc:'how_text_desc'},
+      {title:'how_cross',desc:'how_cross_desc'},
+      {title:'how_ai',desc:'how_ai_desc'}
+    ];
+    howCards.forEach((card,i)=>{
+      if(howData[i]){
+        const title=card.querySelector('.htitle');
+        const text=card.querySelector('.htext');
+        if(title) title.textContent=t(howData[i].title);
+        if(text) text.textContent=t(howData[i].desc);
+      }
+    });
+  }
 }
 
 function getLang(){
@@ -387,7 +521,7 @@ async function loadTrending(){
     const data=await res.json();
     const grid=document.getElementById('tGrid');
     if(!data.ok||!data.articles.length){
-      grid.innerHTML='<div class="tloading" style="grid-column:1/-1">Не удалось загрузить RSS. Используйте примеры ниже.</div>';
+      grid.innerHTML=`<div class="tloading" style="grid-column:1/-1">${t('trending_error')}</div>`;
       return;
     }
     grid.innerHTML=data.articles.map(a=>`
@@ -397,7 +531,7 @@ async function loadTrending(){
         <div class="ttime">${fmtDate(a.published)}</div>
       </div>`).join('');
   }catch(e){
-    document.getElementById('tGrid').innerHTML='<div class="tloading" style="grid-column:1/-1">Ошибка загрузки RSS</div>';
+    document.getElementById('tGrid').innerHTML=`<div class="tloading" style="grid-column:1/-1">${t('trending_error')}</div>`;
   }
 }
 function q(s){return JSON.stringify(String(s||''))}
@@ -407,21 +541,21 @@ function fmtDate(iso){
   catch{return iso.slice(0,10)}
 }
 
-// ── STEPS ────────────────────────────────────────────
 const STEPS=[
-  {icon:'🔗',label:'Анализ источника'},
-  {icon:'📝',label:'Анализ текста'},
-  {icon:'📰',label:'Поиск в RSS + Wikipedia'},
-  {icon:'📖',label:'Факт-чекинг'},
-  {icon:'🤖',label:'AI: цепочка размышлений (6 шагов)'},
+  {icon:'🔗',key:'step_source'},
+  {icon:'📝',key:'step_text'},
+  {icon:'📰',key:'step_cross'},
+  {icon:'📖',key:'step_wiki'},
+  {icon:'🤖',key:'step_ai'},
 ];
 function initSteps(){
-  document.getElementById('stepsWrap').innerHTML=STEPS.map((s,i)=>`
+  const stepsHtml=STEPS.map((s,i)=>`
     <div class="srow pending" id="sr${i}">
       <div class="sicon">${s.icon}</div>
-      <div class="slabel">${s.label}</div>
+      <div class="slabel">${t(s.key)}</div>
       <div class="stime" id="st${i}"></div>
     </div>`).join('');
+  document.getElementById('stepsWrap').innerHTML=stepsHtml;
   document.getElementById('pbarFill').style.width='0%';
 }
 function setStep(i,state,lbl=''){
@@ -439,7 +573,7 @@ async function run(){
   const title=document.getElementById('fTitle').value.trim();
   const text =document.getElementById('fText').value.trim();
   const url  =document.getElementById('fUrl').value.trim();
-  if(!title&&!text){showErr('Введите заголовок или текст новости');return}
+  if(!title&&!text){showErr(t('error_no_text'));return}
   if(!url){document.getElementById('urlHint').style.display='block';document.getElementById('fUrl').focus();return}
 
   const btn=document.getElementById('runBtn');
@@ -482,7 +616,7 @@ async function runPost(title,text,url){
 
     let data;
     try{ data=await res.json(); }
-    catch(e){ showErr('Ошибка чтения ответа сервера: '+e); return; }
+    catch(e){ showErr(t('error_server')+' '+e); return; }
 
     if(data.error){
       STEPS.forEach((_,i)=>setStep(i,'pending'));
@@ -503,7 +637,7 @@ async function runPost(title,text,url){
     renderResult(data);
   }catch(e){
     clearInterval(timer);
-    showErr('Ошибка соединения с сервером. Убедитесь что запущен: python app.py');
+    showErr(t('error_connection'));
   }
 }
 
@@ -515,8 +649,9 @@ function renderResult(d){
   const bgMap={'✅':'rgba(16,185,129,.05)','🟡':'rgba(132,204,22,.05)','⚠️':'rgba(245,158,11,.05)','🚨':'rgba(249,115,22,.05)','🔴':'rgba(239,68,68,.05)'};
   const vbg=bgMap[d.trust_emoji]||'rgba(59,130,246,.04)';
   const deep=d.deep||{};
-  const conf=deep.confidence||'средняя';
-  const cc=conf==='высокая'?'high':conf==='низкая'?'low':'mid';
+  const conf=deep.confidence||'medium';
+  const confMap={'high':'high','low':'low','medium':'mid','средняя':'mid','высокая':'high','низкая':'low'};
+  const cc=confMap[conf]||'mid';
 
   let html=`
   <div class="verdict" style="--vbg:${vbg};border-color:${cl}40">
@@ -535,25 +670,25 @@ function renderResult(d){
         <div class="vmeta">
           <span>🕐 ${d.timestamp}</span>
           <span>⚡ ${d.analysis_time}с</span>
-          <span class="conf ${cc}">уверенность: ${esc(conf)}</span>
-          ${d.url?`<a href="${esc(d.url)}" target="_blank" style="color:var(--accent)">${esc(d.source&&d.source.domain||'ссылка')}</a>`:''}
-          ${d.from_cache?'<span>💾 кэш</span>':''}
+          <span class="conf ${cc}">${t('confidence')} ${esc(conf)}</span>
+          ${d.url?`<a href="${esc(d.url)}" target="_blank" style="color:var(--accent)">${esc(d.source&&d.source.domain||'link')}</a>`:''}
+          ${d.from_cache?'<span>💾 cache</span>':''}
         </div>
       </div>
     </div>
   </div>
 
   <div class="mods">
-    ${mod('📝 Текст',     d.text&&d.text.score,    d.text&&d.text.verdict)}
-    ${mod('🔗 Источник',  d.source&&d.source.score, d.source&&d.source.verdict)}
-    ${mod('📰 Cross-Ref', d.crossref&&d.crossref.score, d.crossref&&d.crossref.verdict)}
-    ${mod('🤖 AI',        deep.score, deep.verdict)}
+    ${mod('📝',     d.text&&d.text.score,    d.text&&d.text.verdict)}
+    ${mod('🔗',  d.source&&d.source.score, d.source&&d.source.verdict)}
+    ${mod('📰', d.crossref&&d.crossref.score, d.crossref&&d.crossref.verdict)}
+    ${mod('🤖',        deep.score, deep.verdict)}
   </div>`;
 
   // Ключевые находки
   const kf=deep.key_findings||[];
   if(kf.length){html+=`<div class="findings">
-    <div class="colhead" style="margin-bottom:10px">Ключевые находки</div>
+    <div class="colhead" style="margin-bottom:10px">${t('key_findings')}</div>
     ${kf.map(f=>`<div class="fi"><div class="fidot"></div>${esc(f)}</div>`).join('')}
   </div>`}
 
@@ -562,15 +697,15 @@ function renderResult(d){
   const srcs=cr.sources||[];
   html+=`<div class="srcbox">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-      <div class="colhead">Найдено в других изданиях</div>
+      <div class="colhead">${t('found_in_others')}</div>
       <div class="srcstats">
-        <span class="sstat g">✅ надёжных: ${cr.trusted_count||0}</span>
-        <span class="sstat r">🚨 сомн.: ${cr.suspicious_count||0}</span>
-        <span class="sstat n">всего: ${cr.total_found||0}</span>
+        <span class="sstat g">${t('trusted_sources')} ${cr.trusted_count||0}</span>
+        <span class="sstat r">${t('suspicious_sources')} ${cr.suspicious_count||0}</span>
+        <span class="sstat n">${t('total_sources')} ${cr.total_found||0}</span>
       </div>
     </div>`;
   if(!srcs.length){
-    html+=`<div style="color:var(--muted);font-size:13px;padding:6px 0">${esc(cr.explanation||'Похожие статьи не найдены.')}</div>`;
+    html+=`<div style="color:var(--muted);font-size:13px;padding:6px 0">${esc(cr.explanation||t('no_sources_found'))}</div>`;
   }else{
     for(const s of srcs.slice(0,6)){
       const ic=s.trusted?'sico t':s.suspicious?'sico s':'sico u';
@@ -590,14 +725,14 @@ function renderResult(d){
   if(cr.wiki){html+=`<div class="wikibox">
     <div class="wtitle">📖 ${esc(cr.wiki.title)}</div>
     <div class="wtext">${esc(cr.wiki.snippet||'')}</div>
-    ${cr.wiki.url?`<a class="wlink" href="${esc(cr.wiki.url)}" target="_blank">→ читать на Wikipedia</a>`:''}
+    ${cr.wiki.url?`<a class="wlink" href="${esc(cr.wiki.url)}" target="_blank">${t('wiki_read')}</a>`:''}
   </div>`}
   html+=`</div>`;
 
   // Что проверить
   const wtc=deep.what_to_check||[];
   if(wtc.length){html+=`<div class="checklist">
-    <div class="colhead" style="margin-bottom:8px">💡 Что проверить читателю</div>
+    <div class="colhead" style="margin-bottom:8px">${t('what_to_check')}</div>
     ${wtc.map(c=>`<div class="ci"><span class="cicon">→</span>${esc(c)}</div>`).join('')}
   </div>`}
 
@@ -606,19 +741,19 @@ function renderResult(d){
   const pos=[...(d.text&&d.text.positives||[]),...(deep.positive_signs||[])];
   if(issues.length||pos.length){html+=`<div class="twocol">
     <div class="colbox">
-      <div class="colhead">Проблемы</div>
-      ${issues.length?issues.map(i=>`<div class="coli"><div class="cdot r"></div>${esc(i)}</div>`).join(''):'<div style="color:var(--green);font-size:12px">Не обнаружено ✓</div>'}
+      <div class="colhead">${t('problems')}</div>
+      ${issues.length?issues.map(i=>`<div class="coli"><div class="cdot r"></div>${esc(i)}</div>`).join(''):`<div style="color:var(--green);font-size:12px">${t('not_detected')}</div>`}
     </div>
     <div class="colbox">
-      <div class="colhead">Признаки достоверности</div>
-      ${pos.length?pos.map(p=>`<div class="coli"><div class="cdot g"></div>${esc(p)}</div>`).join(''):'<div style="color:var(--muted);font-size:12px">Не найдено</div>'}
+      <div class="colhead">${t('positive_signs')}</div>
+      ${pos.length?pos.map(p=>`<div class="coli"><div class="cdot g"></div>${esc(p)}</div>`).join(''):`<div style="color:var(--muted);font-size:12px">${t('not_found')}</div>`}
     </div>
   </div>`}
 
   // Детали источника
   const srcDet=(d.source&&d.source.details)||[];
   if(srcDet.length){html+=`<div class="srcdetail">
-    <div class="colhead" style="margin-bottom:9px">Детали источника: ${esc(d.source&&d.source.domain||'')}</div>
+    <div class="colhead" style="margin-bottom:9px">${t('source_details')} ${esc(d.source&&d.source.domain||'')}</div>
     ${srcDet.map(det=>`<div class="coli"><div class="cdot ${det.startsWith('✅')?'g':'r'}"></div>${esc(det.replace(/^[✅⚠️🚨]\s*/,''))}</div>`).join('')}
   </div>`}
 
@@ -658,8 +793,10 @@ function showErr(msg){
 function hideErr(){document.getElementById('errBox').style.display='none'}
 
 // ── INIT ──────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded',()=>{
+document.addEventListener('DOMContentLoaded',async ()=>{
+  await loadTranslations();
   getLang();
+  updateAllUI();
   loadTrending();
   document.getElementById('fTitle').addEventListener('keydown',e=>{if(e.key==='Enter')run()});
 });

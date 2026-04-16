@@ -22,6 +22,11 @@ def index():
     with open('index.html', 'r', encoding='utf-8') as f:
         return f.read()
 
+@app.route('/translations.json')
+def translations():
+    with open('translations.json', 'r', encoding='utf-8') as f:
+        return f.read()
+
 @app.route('/analyze', methods=['POST'])
 def analyze():
     data  = request.get_json(silent=True)

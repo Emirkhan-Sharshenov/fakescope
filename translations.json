@@ -1,0 +1,578 @@
+{
+  "nav_lang_label": {
+    "ru": "🌍 Язык:",
+    "en": "🌍 Language:",
+    "de": "🌍 Sprache:",
+    "fr": "🌍 Langue:",
+    "es": "🌍 Idioma:",
+    "zh": "🌍 语言:"
+  },
+  "lang_ru": {
+    "ru": "Русский (RU)",
+    "en": "Русский (RU)",
+    "de": "Русisch (RU)",
+    "fr": "Russe (RU)",
+    "es": "Ruso (RU)",
+    "zh": "俄语 (RU)"
+  },
+  "lang_en": {
+    "ru": "English (EN)",
+    "en": "English (EN)",
+    "de": "Englisch (EN)",
+    "fr": "Anglais (EN)",
+    "es": "Inglés (EN)",
+    "zh": "英语 (EN)"
+  },
+  "lang_de": {
+    "ru": "Deutsch (DE)",
+    "en": "Deutsch (DE)",
+    "de": "Deutsch (DE)",
+    "fr": "Allemand (DE)",
+    "es": "Alemán (DE)",
+    "zh": "德语 (DE)"
+  },
+  "lang_fr": {
+    "ru": "Français (FR)",
+    "en": "Français (FR)",
+    "de": "Französisch (FR)",
+    "fr": "Français (FR)",
+    "es": "Francés (FR)",
+    "zh": "法语 (FR)"
+  },
+  "lang_es": {
+    "ru": "Español (ES)",
+    "en": "Español (ES)",
+    "de": "Spanisch (ES)",
+    "fr": "Espagnol (ES)",
+    "es": "Español (ES)",
+    "zh": "西班牙语 (ES)"
+  },
+  "lang_zh": {
+    "ru": "中文 (ZH)",
+    "en": "Chinese (ZH)",
+    "de": "Chinesisch (ZH)",
+    "fr": "Chinois (ZH)",
+    "es": "Chino (ZH)",
+    "zh": "中文 (ZH)"
+  },
+  "brand_title": {
+    "ru": "FakeScope",
+    "en": "FakeScope",
+    "de": "FakeScope",
+    "fr": "FakeScope",
+    "es": "FakeScope",
+    "zh": "FakeScope"
+  },
+  "nav_tags_cot": {
+    "ru": "Chain-of-Thought",
+    "en": "Chain-of-Thought",
+    "de": "Chain-of-Thought",
+    "fr": "Chain-of-Thought",
+    "es": "Chain-of-Thought",
+    "zh": "Chain-of-Thought"
+  },
+  "nav_tags_rss": {
+    "ru": "RSS",
+    "en": "RSS",
+    "de": "RSS",
+    "fr": "RSS",
+    "es": "RSS",
+    "zh": "RSS"
+  },
+  "nav_tags_wiki": {
+    "ru": "Wikipedia",
+    "en": "Wikipedia",
+    "de": "Wikipedia",
+    "fr": "Wikipedia",
+    "es": "Wikipedia",
+    "zh": "维基百科"
+  },
+  "nav_tags_no_keys": {
+    "ru": "Без API ключей",
+    "en": "No API Keys",
+    "de": "Keine API-Schlüssel",
+    "fr": "Pas de clés API",
+    "es": "Sin claves API",
+    "zh": "无需API密钥"
+  },
+  "hero_title": {
+    "ru": "Детектор фейковых новостей",
+    "en": "Fake News Detector",
+    "de": "Fake-News-Detektor",
+    "fr": "Détecteur de Fausses Nouvelles",
+    "es": "Detector de Noticias Falsas",
+    "zh": "虚假新闻检测器"
+  },
+  "hero_subtitle": {
+    "ru": "Анализ источника, текста, поиск по RSS-лентам, факт-чекинг в Wikipedia и пошаговый AI-анализ",
+    "en": "Source analysis, text verification, RSS feeds search, Wikipedia fact-checking, and step-by-step AI analysis",
+    "de": "Quellenanalyse, Textüberprüfung, RSS-Feed-Suche, Wikipedia-Faktencheck und schrittweise KI-Analyse",
+    "fr": "Analyse des sources, vérification des textes, recherche de flux RSS, vérification des faits Wikipedia et analyse IA étape par étape",
+    "es": "Análisis de fuentes, verificación de textos, búsqueda de feeds RSS, verificación de hechos en Wikipedia y análisis de IA paso a paso",
+    "zh": "来源分析、文本验证、RSS订阅源搜索、维基百科事实核实和逐步AI分析"
+  },
+  "chip_cot": {
+    "ru": "🤖 6-шаговый Chain-of-Thought",
+    "en": "🤖 6-Step Chain-of-Thought",
+    "de": "🤖 6-schrittiger Chain-of-Thought",
+    "fr": "🤖 Chain-of-Thought 6 étapes",
+    "es": "🤖 Chain-of-Thought de 6 pasos",
+    "zh": "🤖 6步链式思维"
+  },
+  "chip_rss": {
+    "ru": "📰 10 RSS-лент",
+    "en": "📰 10 RSS Feeds",
+    "de": "📰 10 RSS-Feeds",
+    "fr": "📰 10 flux RSS",
+    "es": "📰 10 fuentes RSS",
+    "zh": "📰 10个RSS订阅源"
+  },
+  "chip_wiki": {
+    "ru": "📖 Wikipedia",
+    "en": "📖 Wikipedia",
+    "de": "📖 Wikipedia",
+    "fr": "📖 Wikipedia",
+    "es": "📖 Wikipedia",
+    "zh": "📖 维基百科"
+  },
+  "chip_cross": {
+    "ru": "🔍 Перекрёстная проверка",
+    "en": "🔍 Cross-Reference",
+    "de": "🔍 Kreuzreferenzierung",
+    "fr": "🔍 Vérification croisée",
+    "es": "🔍 Verificación cruzada",
+    "zh": "🔍 交叉引用"
+  },
+  "chip_no_keys": {
+    "ru": "Без API ключей",
+    "en": "No API Keys",
+    "de": "Keine API-Schlüssel",
+    "fr": "Pas de clés API",
+    "es": "Sin claves API",
+    "zh": "无需API密钥"
+  },
+  "trending_title": {
+    "ru": "Актуальные новости",
+    "en": "Trending News",
+    "de": "Aktuelle Nachrichten",
+    "fr": "Nouvelles tendances",
+    "es": "Noticias populares",
+    "zh": "热门新闻"
+  },
+  "trending_subtitle": {
+    "ru": "нажмите — заполнит форму",
+    "en": "click — fills the form",
+    "de": "klicken — füllt das Formular",
+    "fr": "cliquez — remplit le formulaire",
+    "es": "haz clic — rellena el formulario",
+    "zh": "单击 — 填充表单"
+  },
+  "trending_loading": {
+    "ru": "Загружаем из RSS (РБК, ТАСС, Reuters...)...",
+    "en": "Loading from RSS (RBC, TASS, Reuters...)...",
+    "de": "Laden aus RSS (RBC, TASS, Reuters...)...",
+    "fr": "Chargement à partir de RSS (RBC, TASS, Reuters...)...",
+    "es": "Cargando desde RSS (RBC, TASS, Reuters...)...",
+    "zh": "从RSS加载 (RBC, TASS, Reuters...)..."
+  },
+  "trending_error": {
+    "ru": "Ошибка загрузки RSS",
+    "en": "RSS loading error",
+    "de": "RSS-Ladefehler",
+    "fr": "Erreur de chargement RSS",
+    "es": "Error de carga de RSS",
+    "zh": "RSS加载错误"
+  },
+  "form_title": {
+    "ru": "Заголовок",
+    "en": "Title",
+    "de": "Titel",
+    "fr": "Titre",
+    "es": "Título",
+    "zh": "标题"
+  },
+  "form_title_placeholder": {
+    "ru": "Вставьте заголовок новости...",
+    "en": "Paste news headline...",
+    "de": "Nachrichtenüberschrift einfügen...",
+    "fr": "Collez le titre de l'actualité...",
+    "es": "Pegue el titular de la noticia...",
+    "zh": "粘贴新闻标题..."
+  },
+  "form_required": {
+    "ru": "обязательно",
+    "en": "required",
+    "de": "erforderlich",
+    "fr": "obligatoire",
+    "es": "requerido",
+    "zh": "必需的"
+  },
+  "form_text": {
+    "ru": "Текст",
+    "en": "Text",
+    "de": "Text",
+    "fr": "Texte",
+    "es": "Texto",
+    "zh": "文本"
+  },
+  "form_text_placeholder": {
+    "ru": "Вставьте текст статьи или краткое содержание...",
+    "en": "Paste article text or summary...",
+    "de": "Artikeltext oder Zusammenfassung einfügen...",
+    "fr": "Collez le texte de l'article ou un résumé...",
+    "es": "Pegue el texto del artículo o un resumen...",
+    "zh": "粘贴文章文本或摘要..."
+  },
+  "form_recommended": {
+    "ru": "рекомендуется",
+    "en": "recommended",
+    "de": "empfohlen",
+    "fr": "recommandé",
+    "es": "recomendado",
+    "zh": "推荐"
+  },
+  "form_url": {
+    "ru": "URL источника",
+    "en": "Source URL",
+    "de": "Quellen-URL",
+    "fr": "URL source",
+    "es": "URL de fuente",
+    "zh": "来源URL"
+  },
+  "form_url_placeholder": {
+    "ru": "https://rbc.ru/...",
+    "en": "https://bbc.com/...",
+    "de": "https://spiegel.de/...",
+    "fr": "https://lemonde.fr/...",
+    "es": "https://elmundo.es/...",
+    "zh": "https://news.sina.com.cn/..."
+  },
+  "form_url_hint": {
+    "ru": "⚠️ URL обязателен — нужен для перекрёстной проверки источников",
+    "en": "⚠️ URL is required — needed for cross-source verification",
+    "de": "⚠️ URL ist erforderlich — erforderlich für die Überprüfung zwischen Quellen",
+    "fr": "⚠️ L'URL est obligatoire — nécessaire pour la vérification inter-sources",
+    "es": "⚠️ URL requerida — necesaria para la verificación entre fuentes",
+    "zh": "⚠️ 需要URL — 用于交叉源验证"
+  },
+  "btn_analyze": {
+    "ru": "🔍 Запустить полный анализ",
+    "en": "🔍 Run Full Analysis",
+    "de": "🔍 Vollständige Analyse ausführen",
+    "fr": "🔍 Exécuter l'analyse complète",
+    "es": "🔍 Ejecutar análisis completo",
+    "zh": "🔍 运行完整分析"
+  },
+  "btn_analyzing": {
+    "ru": "Анализируем...",
+    "en": "Analyzing...",
+    "de": "Analysieren...",
+    "fr": "Analyse en cours...",
+    "es": "Analizando...",
+    "zh": "分析中..."
+  },
+  "examples_label": {
+    "ru": "Примеры →",
+    "en": "Examples →",
+    "de": "Beispiele →",
+    "fr": "Exemples →",
+    "es": "Ejemplos →",
+    "zh": "示例 →"
+  },
+  "example_fake": {
+    "ru": "🚨 Фейк",
+    "en": "🚨 Fake",
+    "de": "🚨 Falsch",
+    "fr": "🚨 Faux",
+    "es": "🚨 Falso",
+    "zh": "🚨 假新闻"
+  },
+  "example_real": {
+    "ru": "✅ Реальная",
+    "en": "✅ Real",
+    "de": "✅ Echt",
+    "fr": "✅ Vrai",
+    "es": "✅ Real",
+    "zh": "✅ 真实"
+  },
+  "example_conspiracy": {
+    "ru": "🌀 Заговор",
+    "en": "🌀 Conspiracy",
+    "de": "🌀 Verschwörung",
+    "fr": "🌀 Complot",
+    "es": "🌀 Conspiración",
+    "zh": "🌀 阴谋论"
+  },
+  "progress_title": {
+    "ru": "Ход анализа",
+    "en": "Analysis Progress",
+    "de": "Analysefortschritt",
+    "fr": "Progression de l'analyse",
+    "es": "Progreso del análisis",
+    "zh": "分析进度"
+  },
+  "thinking_title": {
+    "ru": "Цепочка размышлений AI",
+    "en": "AI Thinking Chain",
+    "de": "KI-Gedankenkette",
+    "fr": "Chaîne de réflexion IA",
+    "es": "Cadena de pensamiento de IA",
+    "zh": "AI思维链"
+  },
+  "confidence": {
+    "ru": "уверенность:",
+    "en": "confidence:",
+    "de": "sicherheit:",
+    "fr": "confiance:",
+    "es": "confianza:",
+    "zh": "置信度:"
+  },
+  "key_findings": {
+    "ru": "Ключевые находки",
+    "en": "Key Findings",
+    "de": "Wichtigste Erkenntnisse",
+    "fr": "Résultats clés",
+    "es": "Hallazgos clave",
+    "zh": "关键发现"
+  },
+  "found_in_others": {
+    "ru": "Найдено в других изданиях",
+    "en": "Found in Other Publications",
+    "de": "In anderen Veröffentlichungen gefunden",
+    "fr": "Trouvé dans d'autres publications",
+    "es": "Encontrado en otras publicaciones",
+    "zh": "在其他出版物中找到"
+  },
+  "trusted_sources": {
+    "ru": "✅ надёжных:",
+    "en": "✅ trusted:",
+    "de": "✅ vertrauenswürdig:",
+    "fr": "✅ fiables:",
+    "es": "✅ confiables:",
+    "zh": "✅ 可信:"
+  },
+  "suspicious_sources": {
+    "ru": "🚨 сомн.:",
+    "en": "🚨 suspicious:",
+    "de": "🚨 verdächtig:",
+    "fr": "🚨 suspects:",
+    "es": "🚨 sospechosos:",
+    "zh": "🚨 可疑:"
+  },
+  "total_sources": {
+    "ru": "всего:",
+    "en": "total:",
+    "de": "insgesamt:",
+    "fr": "total:",
+    "es": "total:",
+    "zh": "总计:"
+  },
+  "no_sources_found": {
+    "ru": "Похожие статьи не найдены.",
+    "en": "No similar articles found.",
+    "de": "Keine ähnlichen Artikel gefunden.",
+    "fr": "Aucun article similaire trouvé.",
+    "es": "No se encontraron artículos similares.",
+    "zh": "未找到类似文章。"
+  },
+  "wiki_read": {
+    "ru": "→ читать на Wikipedia",
+    "en": "→ read on Wikipedia",
+    "de": "→ auf Wikipedia lesen",
+    "fr": "→ lire sur Wikipedia",
+    "es": "→ leer en Wikipedia",
+    "zh": "→ 在维基百科上阅读"
+  },
+  "what_to_check": {
+    "ru": "💡 Что проверить читателю",
+    "en": "💡 What to Check",
+    "de": "💡 Was zu überprüfen ist",
+    "fr": "💡 Quoi vérifier",
+    "es": "💡 Qué verificar",
+    "zh": "💡 需要检查的内容"
+  },
+  "problems": {
+    "ru": "Проблемы",
+    "en": "Problems",
+    "de": "Probleme",
+    "fr": "Problèmes",
+    "es": "Problemas",
+    "zh": "问题"
+  },
+  "not_detected": {
+    "ru": "Не обнаружено ✓",
+    "en": "Not detected ✓",
+    "de": "Nicht erkannt ✓",
+    "fr": "Non détecté ✓",
+    "es": "No detectado ✓",
+    "zh": "未检测到 ✓"
+  },
+  "positive_signs": {
+    "ru": "Признаки достоверности",
+    "en": "Signs of Credibility",
+    "de": "Glaubwürdigkeitszeichen",
+    "fr": "Signes de crédibilité",
+    "es": "Signos de credibilidad",
+    "zh": "可信度迹象"
+  },
+  "not_found": {
+    "ru": "Не найдено",
+    "en": "Not found",
+    "de": "Nicht gefunden",
+    "fr": "Pas trouvé",
+    "es": "No encontrado",
+    "zh": "未找到"
+  },
+  "source_details": {
+    "ru": "Детали источника:",
+    "en": "Source Details:",
+    "de": "Quellendetails:",
+    "fr": "Détails de la source:",
+    "es": "Detalles de la fuente:",
+    "zh": "来源详情:"
+  },
+  "error_no_text": {
+    "ru": "Введите заголовок или текст новости",
+    "en": "Enter title or text of the news",
+    "de": "Geben Sie den Titel oder Text der Nachricht ein",
+    "fr": "Entrez le titre ou le texte de l'actualité",
+    "es": "Ingrese el título o texto de la noticia",
+    "zh": "输入新闻标题或文本"
+  },
+  "error_no_url": {
+    "ru": "URL обязателен",
+    "en": "URL is required",
+    "de": "URL ist erforderlich",
+    "fr": "L'URL est obligatoire",
+    "es": "URL es requerida",
+    "zh": "需要URL"
+  },
+  "error_server": {
+    "ru": "Ошибка чтения ответа сервера:",
+    "en": "Server response reading error:",
+    "de": "Fehler beim Lesen der Serverantwort:",
+    "fr": "Erreur de lecture de la réponse du serveur:",
+    "es": "Error al leer la respuesta del servidor:",
+    "zh": "服务器响应读取错误:"
+  },
+  "error_connection": {
+    "ru": "Ошибка соединения с сервером. Убедитесь что запущен: python app.py",
+    "en": "Server connection error. Make sure to run: python app.py",
+    "de": "Fehler bei der Serververbindung. Stellen Sie sicher, dass folgendes ausgeführt wird: python app.py",
+    "fr": "Erreur de connexion au serveur. Assurez-vous d'exécuter: python app.py",
+    "es": "Error de conexión al servidor. Asegúrese de ejecutar: python app.py",
+    "zh": "服务器连接错误。确保运行: python app.py"
+  },
+  "how_title": {
+    "ru": "Как работает система",
+    "en": "How System Works",
+    "de": "Wie das System funktioniert",
+    "fr": "Comment fonctionne le système",
+    "es": "Cómo funciona el sistema",
+    "zh": "系统如何工作"
+  },
+  "how_source": {
+    "ru": "Источник (20%)",
+    "en": "Source (20%)",
+    "de": "Quelle (20%)",
+    "fr": "Source (20%)",
+    "es": "Fuente (20%)",
+    "zh": "来源 (20%)"
+  },
+  "how_source_desc": {
+    "ru": "Проверяем домен по базе 50+ авторитетных изданий и списку ненадёжных сайтов. Анализируем структуру URL и HTTPS.",
+    "en": "Check domain against a database of 50+ authoritative publications and unreliable websites. Analyze URL structure and HTTPS.",
+    "de": "Überprüfen Sie die Domain anhand einer Datenbank von 50+ maßgeblichen Veröffentlichungen und unzuverlässigen Websites. Analysieren Sie die URL-Struktur und HTTPS.",
+    "fr": "Vérifiez le domaine par rapport à une base de données de 50+ publications faisant autorité et de sites Web non fiables. Analysez la structure URL et HTTPS.",
+    "es": "Verifique el dominio con una base de datos de 50+ publicaciones autorizadas y sitios web no confiables. Analizar la estructura URL y HTTPS.",
+    "zh": "根据50+权威出版物和不可靠网站的数据库检查域名。分析URL结构和HTTPS。"
+  },
+  "how_text": {
+    "ru": "Текст (20%)",
+    "en": "Text (20%)",
+    "de": "Text (20%)",
+    "fr": "Texte (20%)",
+    "es": "Texto (20%)",
+    "zh": "文本 (20%)"
+  },
+  "how_text_desc": {
+    "ru": "12 эвристик: кликбейт, манипулятивные слова, капс, теории заговора, качество журналистики, цитаты, конкретные данные.",
+    "en": "12 heuristics: clickbait, manipulative words, caps, conspiracy theories, journalism quality, quotes, specific data.",
+    "de": "12 Heuristiken: Clickbait, manipulative Worte, Großbuchstaben, Verschwörungstheorien, Journalismuskvalität, Zitate, spezifische Daten.",
+    "fr": "12 heuristiques: appâts au clic, mots manipulateurs, majuscules, théories de la conspiration, qualité du journalisme, citations, données spécifiques.",
+    "es": "12 heurísticas: clickbait, palabras manipuladoras, mayúsculas, teorías de conspiración, calidad del periodismo, citas, datos específicos.",
+    "zh": "12个启发式方法:标题党、操纵性词汇、大写、阴谋论、新闻质量、引文、具体数据。"
+  },
+  "how_cross": {
+    "ru": "RSS + Wikipedia (30%)",
+    "en": "RSS + Wikipedia (30%)",
+    "de": "RSS + Wikipedia (30%)",
+    "fr": "RSS + Wikipedia (30%)",
+    "es": "RSS + Wikipedia (30%)",
+    "zh": "RSS + Wikipedia (30%)"
+  },
+  "how_cross_desc": {
+    "ru": "Ищем эту же новость в 10 RSS-лентах (РБК, ТАСС, Reuters, BBC). Проверяем факты через Wikipedia API.",
+    "en": "Search for the same news in 10 RSS feeds (RBC, TASS, Reuters, BBC). Check facts through Wikipedia API.",
+    "de": "Suchen Sie nach denselben Nachrichten in 10 RSS-Feeds (RBC, TASS, Reuters, BBC). Überprüfen Sie Fakten über die Wikipedia-API.",
+    "fr": "Recherchez les mêmes actualités dans 10 flux RSS (RBC, TASS, Reuters, BBC). Vérifiez les faits via l'API Wikipedia.",
+    "es": "Busque las mismas noticias en 10 fuentes RSS (RBC, TASS, Reuters, BBC). Verifique los hechos a través de la API de Wikipedia.",
+    "zh": "在10个RSS订阅源(RBC、TASS、Reuters、BBC)中搜索相同的新闻。通过Wikipedia API验证事实。"
+  },
+  "how_ai": {
+    "ru": "Chain-of-Thought (30%)",
+    "en": "Chain-of-Thought (30%)",
+    "de": "Chain-of-Thought (30%)",
+    "fr": "Chain-of-Thought (30%)",
+    "es": "Chain-of-Thought (30%)",
+    "zh": "Chain-of-Thought (30%)"
+  },
+  "how_ai_desc": {
+    "ru": "6 шагов пошагового анализа: источник → язык → факты → противоречия → подтверждения → итоговое суждение.",
+    "en": "6 steps of step-by-step analysis: source → language → facts → contradictions → confirmations → final judgment.",
+    "de": "6 Schritte der schrittweisen Analyse: Quelle → Sprache → Fakten → Widersprüche → Bestätigungen → Endurheil.",
+    "fr": "6 étapes d'analyse étape par étape: source → langue → faits → contradictions → confirmations → jugement final.",
+    "es": "6 pasos de análisis paso a paso: fuente → idioma → hechos → contradicciones → confirmaciones → sentencia final.",
+    "zh": "6个步骤的逐步分析:来源→语言→事实→矛盾→确认→最终判决。"
+  },
+  "step_source": {
+    "ru": "Анализ источника",
+    "en": "Source Analysis",
+    "de": "Quellenanalyse",
+    "fr": "Analyse de la source",
+    "es": "Análisis de fuente",
+    "zh": "来源分析"
+  },
+  "step_text": {
+    "ru": "Анализ текста",
+    "en": "Text Analysis",
+    "de": "Textanalyse",
+    "fr": "Analyse de texte",
+    "es": "Análisis de texto",
+    "zh": "文本分析"
+  },
+  "step_cross": {
+    "ru": "Поиск в RSS + Wikipedia",
+    "en": "Search in RSS + Wikipedia",
+    "de": "Suche in RSS + Wikipedia",
+    "fr": "Recherche dans RSS + Wikipedia",
+    "es": "Búsqueda en RSS + Wikipedia",
+    "zh": "RSS + Wikipedia搜索"
+  },
+  "step_wiki": {
+    "ru": "Факт-чекинг",
+    "en": "Fact-Checking",
+    "de": "Faktencheck",
+    "fr": "Vérification des faits",
+    "es": "Verificación de hechos",
+    "zh": "事实检查"
+  },
+  "step_ai": {
+    "ru": "AI: цепочка размышлений (6 шагов)",
+    "en": "AI: Chain-of-Thought (6 steps)",
+    "de": "KI: Chain-of-Thought (6 Schritte)",
+    "fr": "IA: Chain-of-Thought (6 étapes)",
+    "es": "IA: Chain-of-Thought (6 pasos)",
+    "zh": "AI: Chain-of-Thought (6个步骤)"
+  }
+}
