@@ -225,6 +225,30 @@ textarea{min-height:100px}
   transition:border-color .15s,background .15s}
 .lang-select:hover{border-color:rgba(59,130,246,.35);background:rgba(59,130,246,.03)}
 .lang-select:focus{outline:none;border-color:rgba(59,130,246,.5);background:rgba(59,130,246,.05)}
+
+/* FEEDBACK SECTION */
+.feedback-box{background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:16px;margin-top:20px}
+.feedback-title{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+.feedback-buttons{display:flex;gap:8px;margin-bottom:12px}
+.feedback-btn{flex:1;padding:12px;border:2px solid rgba(255,255,255,.1);border-radius:9px;background:transparent;
+  color:var(--text);font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px}
+.feedback-btn:hover{border-color:rgba(59,130,246,.3);background:rgba(59,130,246,.05)}
+.feedback-btn.active{border-color:var(--green);background:rgba(16,185,129,.1)}
+.feedback-btn.active.down{border-color:var(--red);background:rgba(239,68,68,.1)}
+.feedback-comment-box{margin-bottom:12px}
+.feedback-comment-box .lbl{margin-bottom:6px}
+.feedback-comment{width:100%;padding:10px 12px;background:rgba(255,255,255,.02);border:1px solid var(--border2);border-radius:8px;
+  color:var(--text);font-family:'Inter',sans-serif;font-size:13px;resize:vertical;min-height:70px;outline:none;transition:border-color .15s}
+.feedback-comment:focus{border-color:rgba(59,130,246,.45);background:rgba(59,130,246,.025)}
+.feedback-comment::placeholder{color:var(--muted)}
+.feedback-submit{width:100%;padding:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));
+  color:#fff;border:none;border-radius:9px;font-weight:600;font-size:14px;cursor:pointer;
+  transition:transform .15s,box-shadow .15s,opacity .15s}
+.feedback-submit:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 6px 20px rgba(59,130,246,.3)}
+.feedback-submit:disabled{opacity:.5;cursor:not-allowed}
+.feedback-status{font-size:13px;text-align:center;padding:8px;border-radius:8px;display:none;margin-bottom:8px}
+.feedback-status.success{color:#6ee7b7;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.2);display:block}
+.feedback-status.error{color:#fca5a5;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);display:block}
 </style>
 </head>
 <body>
@@ -766,6 +790,24 @@ function renderResult(d){
     if(arc) arc.style.strokeDashoffset=C-(sc/100)*C;
   },150);
   res.scrollIntoView({behavior:'smooth',block:'start'});
+  
+  // Add feedback section
+  const feedbackHtml=`
+    <div class="feedback-box">
+      <div class="feedback-title">📊 ${t('feedback_title')}</div>
+      <div class="feedback-buttons">
+        <button class="feedback-btn" onclick="setFeedbackRating('up', '${d.hash}')">👍 ${t('feedback_good')}</button>
+        <button class="feedback-btn" onclick="setFeedbackRating('down', '${d.hash}')">👎 ${t('feedback_bad')}</button>
+      </div>
+      <div class="feedback-comment-box">
+        <div class="lbl" style="margin-bottom:6px">${t('feedback_comment')} <span class="opt">${t('form_recommended')}</span></div>
+        <textarea class="feedback-comment" id="feedbackComment_${d.hash}" placeholder="${t('feedback_comment_placeholder')}"></textarea>
+      </div>
+      <div class="feedback-status" id="feedbackStatus_${d.hash}"></div>
+      <button class="feedback-submit" id="feedbackSubmit_${d.hash}" onclick="submitFeedback('${d.hash}')" disabled>${t('feedback_send')}</button>
+    </div>
+  `;
+  document.getElementById('resBody').innerHTML+=feedbackHtml;
 }
 
 // ── HELPERS ───────────────────────────────────────────
@@ -791,6 +833,94 @@ function showErr(msg){
   document.getElementById('results').style.display='block';
 }
 function hideErr(){document.getElementById('errBox').style.display='none'}
+
+// ── FEEDBACK FUNCTIONS ────────────────────────────────
+let currentFeedbackRating=null;
+let currentFeedbackHash=null;
+
+function setFeedbackRating(rating,hash){
+  currentFeedbackRating=rating;
+  currentFeedbackHash=hash;
+  
+  // Update button styles
+  const buttons=document.querySelectorAll(`[onclick*="setFeedbackRating('up', '${hash}')"], [onclick*="setFeedbackRating('down', '${hash}')"]`);
+  buttons.forEach(btn=>{
+    btn.classList.remove('active','down');
+    if(btn.getAttribute('onclick').includes(`'${rating}'`)){
+      btn.classList.add('active');
+      if(rating==='down') btn.classList.add('down');
+    }
+  });
+  
+  // Enable submit button
+  document.getElementById(`feedbackSubmit_${hash}`).disabled=false;
+}
+
+async function submitFeedback(hash){
+  if(!currentFeedbackRating){
+    alert(t('feedback_select_rating'));
+    return;
+  }
+  
+  const comment=document.getElementById(`feedbackComment_${hash}`).value.trim();
+  const submitBtn=document.getElementById(`feedbackSubmit_${hash}`);
+  const statusEl=document.getElementById(`feedbackStatus_${hash}`);
+  
+  submitBtn.disabled=true;
+  statusEl.className='feedback-status';
+  statusEl.textContent='⏳ ' + t('sending');
+  statusEl.style.display='block';
+  
+  try{
+    const res=await fetch('/feedback',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        analysis_id:hash,
+        rating:currentFeedbackRating,
+        comment:comment,
+        lang:currentLang
+      })
+    });
+    
+    const data=await res.json();
+    
+    if(data.ok){
+      statusEl.className='feedback-status success';
+      statusEl.textContent='✅ '+data.message;
+      // Disable feedback section after successful submission
+      document.querySelectorAll(`[id*="${hash}"]`).forEach(el=>{
+        if(el.classList.contains('feedback-btn')) el.disabled=true;
+        if(el.classList.contains('feedback-comment')) el.disabled=true;
+        if(el.classList.contains('feedback-submit')) el.disabled=true;
+      });
+      // Show analytics after feedback
+      setTimeout(()=>loadAnalytics(),1000);
+    }else{
+      statusEl.className='feedback-status error';
+      statusEl.textContent='❌ '+data.error;
+      submitBtn.disabled=false;
+    }
+  }catch(e){
+    statusEl.className='feedback-status error';
+    statusEl.textContent='❌ '+t('error_connection');
+    submitBtn.disabled=false;
+  }
+}
+
+async function loadAnalytics(){
+  try{
+    const res=await fetch('/analytics/stats');
+    const data=await res.json();
+    
+    if(data.total_feedback>0){
+      const msg=`📊 ${t('analytics_feedback')}: ${data.total_feedback} | 👍 ${data.thumbs_up} | 👎 ${data.thumbs_down} ${data.approval_rate?'| '+data.approval_rate+'% '+t('positive_signs'):''}`;
+      console.log(msg);
+    }
+  }catch(e){
+    console.log('Could not load analytics',e);
+  }
+}
 
 // ── INIT ──────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded',async ()=>{

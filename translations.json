@@ -574,5 +574,77 @@
     "fr": "IA: Chain-of-Thought (6 étapes)",
     "es": "IA: Chain-of-Thought (6 pasos)",
     "zh": "AI: Chain-of-Thought (6个步骤)"
+  },
+  "feedback_title": {
+    "ru": "Была ли оценка полезна?",
+    "en": "Was the analysis helpful?",
+    "de": "War die Analyse hilfreich?",
+    "fr": "L'analyse a-t-elle été utile?",
+    "es": "¿Fue útil el análisis?",
+    "zh": "分析是否有帮助?"
+  },
+  "feedback_good": {
+    "ru": "Полезно",
+    "en": "Helpful",
+    "de": "Hilfreich",
+    "fr": "Utile",
+    "es": "Útil",
+    "zh": "有帮助"
+  },
+  "feedback_bad": {
+    "ru": "Не полезно",
+    "en": "Not Helpful",
+    "de": "Nicht hilfreich",
+    "fr": "Pas utile",
+    "es": "No útil",
+    "zh": "没有帮助"
+  },
+  "feedback_comment": {
+    "ru": "Комментарий",
+    "en": "Comment",
+    "de": "Kommentar",
+    "fr": "Commentaire",
+    "es": "Comentario",
+    "zh": "评论"
+  },
+  "feedback_comment_placeholder": {
+    "ru": "Расскажите, что улучшить или в чём ошибка (опционально)...",
+    "en": "Tell us what could be improved or if there's an error (optional)...",
+    "de": "Sagen Sie uns, was verbessert werden könnte oder ob ein Fehler vorliegt (optional)...",
+    "fr": "Dites-nous ce qui pourrait être amélioré ou s'il y a une erreur (facultatif)...",
+    "es": "Cuéntanos qué se puede mejorar o si hay un error (opcional)...",
+    "zh": "告诉我们什么可以改进或是否有错误(可选)..."
+  },
+  "feedback_send": {
+    "ru": "Отправить отзыв",
+    "en": "Send Feedback",
+    "de": "Feedback senden",
+    "fr": "Envoyer des commentaires",
+    "es": "Enviar comentarios",
+    "zh": "发送反馈"
+  },
+  "feedback_select_rating": {
+    "ru": "Пожалуйста, выберите оценку",
+    "en": "Please select a rating",
+    "de": "Bitte wählen Sie eine Bewertung",
+    "fr": "Veuillez sélectionner une note",
+    "es": "Por favor, selecciona una calificación",
+    "zh": "请选择评分"
+  },
+  "sending": {
+    "ru": "Отправляем...",
+    "en": "Sending...",
+    "de": "Wird gesendet...",
+    "fr": "Envoi en cours...",
+    "es": "Enviando...",
+    "zh": "发送中..."
+  },
+  "analytics_feedback": {
+    "ru": "Всего отзывов",
+    "en": "Total Feedback",
+    "de": "Gesamtrückmeldung",
+    "fr": "Commentaires totaux",
+    "es": "Retroalimentación total",
+    "zh": "总反馈"
   }
 }

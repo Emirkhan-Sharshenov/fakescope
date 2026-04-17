@@ -5,10 +5,12 @@ Flask backend: 6 languages, BERT + Groq AI, global sources
 from flask import Flask, request, jsonify, Response, stream_with_context
 import json, hashlib, time
 from detector import FakeNewsDetector, NewsSearcher, SUPPORTED_LANGS
+from analytics import AnalyticsManager
 
 app = Flask(__name__, static_folder=None)
 detector = FakeNewsDetector()
 news_searcher = NewsSearcher()
+analytics = AnalyticsManager()
 cache = {}
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -19,6 +21,12 @@ def _get_lang(data: dict) -> str:
 # ── routes ────────────────────────────────────────────────────────────────────
 @app.route('/')
 def index():
+    # Track visitor
+    ip = request.remote_addr
+    user_agent = request.headers.get('User-Agent', 'unknown')
+    lang = request.args.get('lang', 'ru')
+    analytics.track_visitor(ip, user_agent, lang)
+    
     with open('index.html', 'r', encoding='utf-8') as f:
         return f.read()
 
@@ -238,6 +246,65 @@ def status():
         "languages": list(SUPPORTED_LANGS),
         "sources": "Global 60+ countries — BBC, Reuters, AP, Al Jazeera, DW, Guardian, NYT, "
                    "France24, РБК, ТАСС, Tengri, 24.kg, Kun.uz…",
+    })
+
+
+@app.route('/feedback', methods=['POST'])
+def save_feedback():
+    """Save user feedback (thumbs up/down + comment)"""
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"ok": False, "error": "No data"}), 400
+    
+    analysis_id = (data.get('analysis_id') or '').strip()
+    rating = (data.get('rating') or '').strip().lower()
+    comment = (data.get('comment') or '').strip()
+    lang = _get_lang(data)
+    
+    if rating not in ['up', 'down']:
+        return jsonify({"ok": False, "error": "Invalid rating"}), 400
+    
+    ip = request.remote_addr
+    success = analytics.save_feedback(ip, analysis_id, rating, comment, lang)
+    
+    if success:
+        return jsonify({
+            "ok": True,
+            "message": {
+                "ru": "✅ Спасибо за отзыв!",
+                "en": "✅ Thank you for your feedback!",
+                "de": "✅ Danke für Ihr Feedback!",
+                "fr": "✅ Merci pour vos commentaires!",
+                "es": "✅ ¡Gracias por tu opinión!",
+                "zh": "✅ 感谢您的反馈！"
+            }.get(lang, "✅ Thank you!")
+        })
+    else:
+        return jsonify({"ok": False, "error": "Failed to save feedback"}), 500
+
+
+@app.route('/analytics/stats')
+def get_analytics():
+    """Get public analytics statistics"""
+    stats = analytics.get_stats()
+    approval_rate = analytics.get_approval_rate()
+    
+    return jsonify({
+        "total_visitors": stats['total_visitors'],
+        "total_feedback": stats['total_feedback'],
+        "thumbs_up": stats['thumbs_up'],
+        "thumbs_down": stats['thumbs_down'],
+        "approval_rate": approval_rate,
+        "languages": stats['languages'],
+        "recent_comments": [
+            {
+                "rating": f.get('rating'),
+                "comment": f.get('comment', ''),
+                "language": f.get('language')
+            }
+            for f in stats['recent_feedback']
+            if f.get('comment')  # Only show feedback with comments
+        ][:10]  # Last 10 with comments
     })
 
 
