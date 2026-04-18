@@ -646,5 +646,13 @@
     "fr": "Commentaires totaux",
     "es": "Retroalimentación total",
     "zh": "总反馈"
+  },
+  "view_full_dashboard": {
+    "ru": "Посмотреть дашборд",
+    "en": "View Dashboard",
+    "de": "Dashboard anzeigen",
+    "fr": "Voir le tableau de bord",
+    "es": "Ver panel",
+    "zh": "查看仪表板"
   }
 }

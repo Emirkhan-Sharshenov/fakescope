@@ -248,6 +248,152 @@ textarea{min-height:100px}
 .feedback-submit:disabled{opacity:.5;cursor:not-allowed}
 .feedback-status{font-size:13px;text-align:center;padding:8px;border-radius:8px;display:none;margin-bottom:8px}
 .feedback-status.success{color:#6ee7b7;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.2);display:block}
+
+/* RESPONSIVE DESIGN */
+@media(max-width:1024px){
+  .wrap{max-width:100%;padding:0 15px 80px}
+}
+
+@media(max-width:768px){
+  nav{flex-direction:column;gap:15px;padding:15px 0;margin-bottom:30px}
+  .brand{font-size:16px}
+  .nav-tags{justify-content:center}
+  
+  .hero{margin-bottom:30px}
+  .hero h1{font-size:clamp(24px,8vw,40px)}
+  .hero p{font-size:14px;max-width:100%}
+  .chips{justify-content:center}
+  
+  .sec{flex-direction:column;align-items:flex-start;gap:6px}
+  .sec-sub{margin-left:0;margin-top:4px}
+  
+  .fbox{padding:20px}
+  .field{margin-bottom:14px}
+  
+  .btn{margin-top:10px;padding:14px;font-size:14px}
+  
+  .exs{justify-content:center}
+  
+  #progBox{padding:16px;margin-top:16px}
+  .steps{gap:6px}
+  .srow{padding:10px 12px;gap:8px}
+  .sicon{width:24px;height:24px;font-size:12px}
+  
+  .verdict-in{flex-direction:column;gap:15px;text-align:center}
+  .dnum{font-size:20px}
+  .vmeta{justify-content:center}
+  
+  .mods{grid-template-columns:repeat(2,1fr);gap:8px}
+  .mcard{padding:12px}
+  .mtitle{font-size:12px}
+  
+  .twocol{grid-template-columns:1fr;gap:8px}
+  .colbox{padding:12px}
+  .coli{font-size:11px}
+  
+  .srcdetail{padding:12px}
+  
+  .how{margin-top:30px;gap:8px}
+  .howcard{padding:12px}
+  .hicon{font-size:17px}
+  .htitle{font-size:12px}
+  .htext{font-size:11px}
+  
+  .feedback-box{padding:14px;margin-top:16px}
+  .feedback-buttons{flex-direction:column;gap:6px}
+  .feedback-btn{font-size:13px;padding:10px}
+  .feedback-comment{min-height:60px;font-size:12px}
+  .feedback-submit{font-size:13px;padding:10px}
+}
+
+@media(max-width:480px){
+  body{font-size:13px}
+  
+  nav{padding:12px 0;margin-bottom:25px}
+  .brand{font-size:15px;gap:8px}
+  .brand-dot{width:28px;height:28px;font-size:14px}
+  .nav-tags{gap:4px}
+  .ntag{font-size:9px;padding:2px 6px}
+  
+  .hero{margin-bottom:25px}
+  .hero h1{font-size:clamp(20px,10vw,32px);margin-bottom:8px}
+  .hero p{font-size:13px;margin-bottom:12px}
+  .chips{gap:5px}
+  .chip{font-size:10px;padding:3px 8px}
+  
+  .sec{margin-bottom:10px}
+  .sec-line{height:12px}
+  .sec-title{font-size:10px}
+  .sec-sub{font-size:10px}
+  
+  .tgrid{grid-template-columns:1fr;gap:8px;margin-bottom:24px}
+  .tcard{padding:12px}
+  .ttitle{font-size:12px}
+  .ttime{font-size:9px}
+  .tloading{padding:20px;font-size:12px}
+  
+  .fbox{border-radius:12px;padding:16px;margin-bottom:10px}
+  .field{margin-bottom:12px}
+  .lbl{font-size:9px;gap:4px;margin-bottom:6px}
+  .req,.opt{font-size:8px;padding:1px 4px}
+  input,textarea{padding:10px 12px;font-size:13px;border-radius:8px}
+  textarea{min-height:80px}
+  .urlhint{font-size:10px;padding:5px 8px;border-radius:5px;margin-top:4px}
+  
+  .btn{margin-top:8px;padding:12px;font-size:13px;border-radius:9px}
+  
+  .exs{gap:5px;margin-top:8px}
+  .exl{font-size:9px}
+  .exb{font-size:11px;padding:4px 8px;border-radius:6px}
+  
+  #progBox{border-radius:12px;padding:16px;margin-top:16px}
+  .prog-title{font-size:10px;margin-bottom:12px}
+  .steps{gap:5px}
+  .srow{padding:8px 10px;gap:6px;border-radius:6px}
+  .sicon{width:22px;height:22px;font-size:11px}
+  .slabel{font-size:12px}
+  
+  .think-head{margin-bottom:8px}
+  .think-title{font-size:9px;gap:4px}
+  .think-dots{font-size:10px}
+  
+  .verdict-in{flex-direction:column;gap:12px}
+  .dnum{font-size:18px}
+  .vmeta{gap:8px;font-size:9px;flex-wrap:wrap}
+  
+  .mods{grid-template-columns:1fr;gap:6px}
+  .mcard{padding:10px;border-radius:8px}
+  .mtitle{font-size:11px}
+  .mval{font-size:10px}
+  
+  .twocol{gap:6px}
+  .colbox{border-radius:8px;padding:10px}
+  .colhead{font-size:9px;margin-bottom:6px}
+  .coli{gap:6px;padding:4px 0;font-size:11px;border-bottom:1px solid rgba(255,255,255,.03)}
+  .cdot{width:4px;height:4px;margin-top:4px}
+  
+  .srcdetail{border-radius:8px;padding:10px;margin-bottom:10px}
+  
+  .err{border-radius:8px;padding:10px 12px;font-size:12px;margin-bottom:10px}
+  
+  .how{margin-top:25px;gap:6px}
+  .howcard{border-radius:8px;padding:10px}
+  .hicon{font-size:15px;margin-bottom:4px}
+  .htitle{font-size:11px;margin-bottom:2px}
+  .htext{font-size:10px}
+  
+  .lang-selector{gap:6px}
+  .lang-select{font-size:12px;padding:5px 8px;border-radius:6px}
+  
+  .feedback-box{border-radius:8px;padding:12px;margin-top:16px}
+  .feedback-title{font-size:10px;margin-bottom:10px}
+  .feedback-buttons{gap:4px}
+  .feedback-btn{font-size:12px;padding:8px;border-radius:7px}
+  .feedback-comment-box{margin-bottom:10px}
+  .feedback-comment{font-size:12px;padding:8px 10px;border-radius:6px;min-height:50px}
+  .feedback-submit{font-size:12px;padding:10px;border-radius:7px}
+  .feedback-status{font-size:12px;padding:6px;border-radius:6px}
+}
 .feedback-status.error{color:#fca5a5;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);display:block}
 </style>
 </head>
@@ -914,7 +1060,7 @@ async function loadAnalytics(){
     const data=await res.json();
     
     if(data.total_feedback>0){
-      const msg=`📊 ${t('analytics_feedback')}: ${data.total_feedback} | 👍 ${data.thumbs_up} | 👎 ${data.thumbs_down} ${data.approval_rate?'| '+data.approval_rate+'% '+t('positive_signs'):''}`;
+      const msg=`📊 ${t('analytics_feedback')}: ${data.total_feedback} | 👍 ${data.thumbs_up} | 👎 ${data.thumbs_down} ${data.approval_rate?'| '+data.approval_rate+'% '+t('positive_signs'):''} | <a href="/analytics/dashboard" target="_blank" style="color:#007acc;text-decoration:underline;">${t('view_full_dashboard') || 'View Dashboard'}</a>`;
       console.log(msg);
     }
   }catch(e){

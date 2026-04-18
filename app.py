@@ -4,6 +4,7 @@ Flask backend: 6 languages, BERT + Groq AI, global sources
 """
 from flask import Flask, request, jsonify, Response, stream_with_context
 import json, hashlib, time
+from datetime import datetime
 from detector import FakeNewsDetector, NewsSearcher, SUPPORTED_LANGS
 from analytics import AnalyticsManager
 
@@ -306,6 +307,317 @@ def get_analytics():
             if f.get('comment')  # Only show feedback with comments
         ][:10]  # Last 10 with comments
     })
+
+
+@app.route('/analytics/detailed')
+def get_detailed_analytics():
+    """Get detailed analytics metrics for dashboard"""
+    detailed = analytics.get_detailed_metrics()
+    return jsonify(detailed)
+
+
+@app.route('/analytics/dashboard')
+def analytics_dashboard():
+    """Serve analytics dashboard HTML page"""
+    dashboard_html = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FakeScope Analytics Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .header h1 { color: #333; margin: 0; }
+        .header p { color: #666; margin: 10px 0 0 0; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .stat-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .stat-card h3 { margin: 0 0 10px 0; color: #333; font-size: 14px; text-transform: uppercase; }
+        .stat-value { font-size: 32px; font-weight: bold; color: #007acc; margin: 0; }
+        .stat-label { color: #666; font-size: 12px; margin: 5px 0 0 0; }
+        .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; }
+        .chart-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .chart-card h3 { margin: 0 0 20px 0; color: #333; }
+        .chart-container { position: relative; height: 300px; }
+        .verification { background: #e8f5e8; border: 1px solid #4caf50; padding: 15px; border-radius: 8px; margin-top: 20px; }
+        .verification h4 { margin: 0 0 10px 0; color: #2e7d32; }
+        .verification ul { margin: 0; padding-left: 20px; color: #2e7d32; }
+        .loading { text-align: center; padding: 50px; color: #666; }
+        .error { color: #d32f2f; text-align: center; padding: 20px; }
+        
+        /* Responsive Design */
+        @media(max-width:768px){
+            .container { padding: 10px; }
+            .header { margin-bottom: 20px; }
+            .header h1 { font-size: 24px; }
+            .header p { font-size: 14px; }
+            .stats-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+            .stat-card { padding: 15px; }
+            .stat-value { font-size: 24px; }
+            .charts-grid { grid-template-columns: 1fr; gap: 15px; }
+            .chart-card { padding: 15px; }
+            .verification { padding: 12px; margin-top: 15px; }
+            .verification ul { padding-left: 15px; font-size: 14px; }
+        }
+        
+        @media(max-width:480px){
+            .container { padding: 5px; }
+            .header { margin-bottom: 15px; }
+            .header h1 { font-size: 20px; }
+            .header p { font-size: 13px; }
+            .stats-grid { grid-template-columns: 1fr; gap: 10px; }
+            .stat-card { padding: 12px; }
+            .stat-value { font-size: 20px; }
+            .stat-label { font-size: 11px; }
+            .charts-grid { gap: 10px; }
+            .chart-card { padding: 12px; }
+            .chart-container { height: 250px; }
+            .verification { padding: 10px; margin-top: 12px; border-radius: 6px; }
+            .verification h4 { font-size: 14px; margin-bottom: 8px; }
+            .verification ul { padding-left: 12px; font-size: 13px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 FakeScope Analytics Dashboard</h1>
+            <p>Real-time analytics and verification of user engagement</p>
+        </div>
+        
+        <div id="loading" class="loading">Loading analytics data...</div>
+        <div id="error" class="error" style="display: none;"></div>
+        
+        <div id="dashboard" style="display: none;">
+            <div class="stats-grid" id="stats-grid">
+                <!-- Stats cards will be inserted here -->
+            </div>
+            
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <h3>📈 Daily Visits (Last 30 Days)</h3>
+                    <div class="chart-container">
+                        <canvas id="dailyVisitsChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="chart-card">
+                    <h3>🕐 Hourly Distribution</h3>
+                    <div class="chart-container">
+                        <canvas id="hourlyChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="chart-card">
+                    <h3>👍👎 Feedback Trends</h3>
+                    <div class="chart-container">
+                        <canvas id="feedbackChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="chart-card">
+                    <h3>🌍 Language Distribution</h3>
+                    <div class="chart-container">
+                        <canvas id="languageChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="verification">
+                <h4>✅ Data Verification</h4>
+                <ul id="verification-list">
+                    <!-- Verification items will be inserted here -->
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let statsData = {};
+        let detailedData = {};
+        let verificationData = {};
+
+        async function loadData() {
+            try {
+                const [statsRes, detailedRes, verifyRes] = await Promise.all([
+                    fetch('/analytics/stats'),
+                    fetch('/analytics/detailed'),
+                    fetch('/analytics/verify')
+                ]);
+
+                statsData = await statsRes.json();
+                detailedData = await detailedRes.json();
+                verificationData = await verifyRes.json();
+
+                renderDashboard();
+            } catch (error) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').textContent = 'Error loading analytics data: ' + error.message;
+            }
+        }
+
+        function renderDashboard() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'block';
+            
+            renderStatsCards();
+            renderCharts();
+            renderVerification();
+        }
+
+        function renderStatsCards() {
+            const grid = document.getElementById('stats-grid');
+            const cards = [
+                { title: 'Total Visitors', value: statsData.total_visitors, label: 'unique users' },
+                { title: 'Total Feedback', value: statsData.total_feedback, label: 'user reviews' },
+                { title: 'Approval Rate', value: statsData.approval_rate ? statsData.approval_rate + '%' : 'N/A', label: 'positive feedback' },
+                { title: 'Languages', value: Object.keys(statsData.languages).length, label: 'supported' },
+                { title: 'Unique Browsers', value: verificationData.verification?.user_agent_diversity || 0, label: 'different user agents' },
+                { title: 'Data Storage', value: verificationData.verification?.data_storage || 'Unknown', label: 'storage method' }
+            ];
+
+            grid.innerHTML = cards.map(card => `
+                <div class="stat-card">
+                    <h3>${card.title}</h3>
+                    <div class="stat-value">${card.value}</div>
+                    <div class="stat-label">${card.label}</div>
+                </div>
+            `).join('');
+        }
+
+        function renderCharts() {
+            // Daily Visits Chart
+            const dailyCtx = document.getElementById('dailyVisitsChart').getContext('2d');
+            new Chart(dailyCtx, {
+                type: 'line',
+                data: {
+                    labels: Object.keys(detailedData.daily_visits || {}),
+                    datasets: [{
+                        label: 'Visits',
+                        data: Object.values(detailedData.daily_visits || {}),
+                        borderColor: '#007acc',
+                        backgroundColor: 'rgba(0, 122, 204, 0.1)',
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+
+            // Hourly Distribution Chart
+            const hourlyCtx = document.getElementById('hourlyChart').getContext('2d');
+            new Chart(hourlyCtx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(detailedData.hourly_distribution || {}).map(h => h + ':00'),
+                    datasets: [{
+                        label: 'Visits',
+                        data: Object.values(detailedData.hourly_distribution || {}),
+                        backgroundColor: '#4caf50'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+
+            // Feedback Trends Chart
+            const feedbackCtx = document.getElementById('feedbackChart').getContext('2d');
+            const feedbackLabels = Object.keys(detailedData.feedback_trends || {});
+            const upData = feedbackLabels.map(date => detailedData.feedback_trends[date]?.up || 0);
+            const downData = feedbackLabels.map(date => detailedData.feedback_trends[date]?.down || 0);
+            
+            new Chart(feedbackCtx, {
+                type: 'line',
+                data: {
+                    labels: feedbackLabels,
+                    datasets: [
+                        {
+                            label: '👍 Positive',
+                            data: upData,
+                            borderColor: '#4caf50',
+                            backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                            tension: 0.4
+                        },
+                        {
+                            label: '👎 Negative',
+                            data: downData,
+                            borderColor: '#f44336',
+                            backgroundColor: 'rgba(244, 67, 54, 0.1)',
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+
+            // Language Distribution Chart
+            const langCtx = document.getElementById('languageChart').getContext('2d');
+            const langData = statsData.languages || {};
+            new Chart(langCtx, {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(langData),
+                    datasets: [{
+                        data: Object.values(langData),
+                        backgroundColor: [
+                            '#007acc', '#4caf50', '#ff9800', '#f44336', '#9c27b0', '#00bcd4'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+        }
+
+        function renderVerification() {
+            const list = document.getElementById('verification-list');
+            const verify = verificationData.verification || {};
+            
+            const items = [
+                `Total unique visitors: ${verify.total_unique_visitors || 0}`,
+                `Unique feedback givers: ${verify.total_unique_feedback_givers || 0}`,
+                `User agent diversity: ${verify.user_agent_diversity || 0} different browsers`,
+                `IP hashing: ${verify.ip_hashing || 'SHA256 for privacy'}`,
+                `External tracking: ${verify.no_external_tracking ? 'None' : 'Present'}`,
+                `Data storage: ${verify.data_storage || 'Unknown'}`,
+                `Last updated: ${verificationData.last_updated || 'Unknown'}`
+            ];
+
+            list.innerHTML = items.map(item => `<li>${item}</li>`).join('');
+        }
+
+        // Load data on page load
+        loadData();
+        
+        // Refresh every 5 minutes
+        setInterval(loadData, 300000);
+    </script>
+</body>
+</html>
+    """
+    return dashboard_html
 
 
 if __name__ == '__main__':
