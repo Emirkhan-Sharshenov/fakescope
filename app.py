@@ -316,6 +316,17 @@ def get_detailed_analytics():
     return jsonify(detailed)
 
 
+@app.route('/analytics/verify')
+def verify_analytics():
+    """Get verification data for public dashboard authenticity"""
+    verification = analytics.get_verification_data()
+    return jsonify({
+        "verification": verification,
+        "last_updated": datetime.utcnow().isoformat() + 'Z',
+        "source": "server"
+    })
+
+
 @app.route('/analytics/dashboard')
 def analytics_dashboard():
     """Serve analytics dashboard HTML page"""
