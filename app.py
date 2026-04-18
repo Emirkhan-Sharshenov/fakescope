@@ -8,7 +8,7 @@ from datetime import datetime
 from detector import FakeNewsDetector, NewsSearcher, SUPPORTED_LANGS
 from analytics import AnalyticsManager
 
-app = Flask(__name__, static_folder=None)
+app = Flask(__name__, static_folder='.', static_url_path='')
 detector = FakeNewsDetector()
 news_searcher = NewsSearcher()
 analytics = AnalyticsManager()
